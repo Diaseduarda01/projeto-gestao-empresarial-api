@@ -1,0 +1,115 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Cliente {
+  id        String   @id @default(uuid())
+  nome      String
+  telefone  String
+  email     String   @unique
+  createdAt DateTime @default(now()) @map("created_at")
+  pedidos   Pedido[]
+
+  @@map("clientes")
+}
+
+model Funcionario {
+  id            String               @id @default(uuid())
+  nome          String
+  email         String               @unique
+  senha         String
+  createdAt     DateTime             @default(now()) @map("created_at")
+  agendamentos  Agendamento[]
+  servicos      FuncionarioServico[]
+
+  @@map("funcionarios")
+}
+
+model Servico {
+  id            String               @id @default(uuid())
+  nome          String
+  descricao     String
+  duracao       Int
+  preco         Decimal              @db.Decimal(10, 2)
+  pedidos       PedidoServico[]
+  funcionarios  FuncionarioServico[]
+
+  @@map("servicos")
+}
+
+model FuncionarioServico {
+  funcionarioId String      @map("funcionario_id")
+  servicoId     String      @map("servico_id")
+  funcionario   Funcionario @relation(fields: [funcionarioId], references: [id], onDelete: Cascade)
+  servico       Servico     @relation(fields: [servicoId], references: [id], onDelete: Cascade)
+
+  @@id([funcionarioId, servicoId])
+  @@map("funcionario_servicos")
+}
+
+model Sala {
+  id           String         @id @default(uuid())
+  nome         String
+  descricao    String
+  agendamentos Agendamento[]
+
+  @@map("salas")
+}
+
+enum PedidoStatus {
+  ABERTO
+  AGENDADO
+  CONCLUIDO
+  CANCELADO
+}
+
+model Pedido {
+  id          String          @id @default(uuid())
+  clienteId   String          @map("cliente_id")
+  status      PedidoStatus    @default(ABERTO)
+  createdAt   DateTime        @default(now()) @map("created_at")
+  cliente     Cliente         @relation(fields: [clienteId], references: [id])
+  servicos    PedidoServico[]
+  agendamento Agendamento?
+
+  @@map("pedidos")
+}
+
+model PedidoServico {
+  pedidoId  String  @map("pedido_id")
+  servicoId String  @map("servico_id")
+  pedido    Pedido  @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  servico   Servico @relation(fields: [servicoId], references: [id])
+
+  @@id([pedidoId, servicoId])
+  @@map("pedido_servicos")
+}
+
+enum AgendamentoStatus {
+  AGENDADO
+  CONCLUIDO
+  CANCELADO
+}
+
+model Agendamento {
+  id             String            @id @default(uuid())
+  pedidoId       String            @unique @map("pedido_id")
+  funcionarioId  String            @map("funcionario_id")
+  salaId         String            @map("sala_id")
+  data           DateTime          @db.Date
+  horaInicio    DateTime           @map("hora_inicio") @db.Timestamp(6)
+  horaFim       DateTime           @map("hora_fim") @db.Timestamp(6)
+  status         AgendamentoStatus @default(AGENDADO)
+  pedido         Pedido            @relation(fields: [pedidoId], references: [id])
+  funcionario    Funcionario       @relation(fields: [funcionarioId], references: [id])
+  sala           Sala              @relation(fields: [salaId], references: [id])
+
+  @@index([funcionarioId, horaInicio])
+  @@index([salaId, horaInicio])
+  @@map("agendamentos")
+}
