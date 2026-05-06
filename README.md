@@ -17,12 +17,14 @@ Um funcionário só pode ser atribuído a um agendamento se tiver especialidade 
 
 ## Stack
 
-- **Runtime:** Node.js 20 + TypeScript
-- **Framework:** Express
-- **ORM:** Prisma + PostgreSQL
-- **Auth:** JWT + bcrypt
-- **Validação:** Zod
-- **Testes:** Vitest + Supertest
+- **Runtime:** Node.js 20 + TypeScript 5.6
+- **Framework:** NestJS 11
+- **ORM:** Prisma 5.22 (migrations + client gen)
+- **Banco:** PostgreSQL (UUIDs como PKs)
+- **Auth:** JWT + bcrypt (Passport + @nestjs/jwt)
+- **Validação:** Zod + nestjs-zod (ZodValidationPipe global)
+- **Docs:** Swagger UI em `/docs`
+- **Docker:** Dockerfile disponível (porta 3333)
 
 ---
 
@@ -63,59 +65,25 @@ npm run dev                   # inicia em http://localhost:3333
 | Variável       | Descrição                        | Padrão                    |
 |----------------|----------------------------------|---------------------------|
 | `DATABASE_URL` | Connection string do PostgreSQL  | (obrigatório)             |
-| `JWT_SECRET`   | Segredo para assinar o JWT       | `change-me-in-production` |
+| `JWT_SECRET`   | Segredo para assinar o JWT       | (obrigatório)             |
 | `PORT`         | Porta da aplicação               | `3333`                    |
 
 ---
 
 ## Scripts disponíveis
 
-| Comando                   | Descrição                                    |
-|---------------------------|----------------------------------------------|
-| `npm run dev`             | Inicia com hot reload (tsx watch)            |
-| `npm run build`           | Compila TypeScript para `dist/`              |
-| `npm start`               | Inicia a build compilada                     |
-| `npm run seed`            | Cria o usuário admin padrão                  |
-| `npm test`                | Executa todos os testes unitários            |
-| `npm run test:unit`       | Apenas testes unitários (sem banco)          |
-| `npm run test:integration`| Testes de integração (requer banco de teste) |
-| `npm run test:coverage`   | Testes unitários com relatório de cobertura  |
-| `npm run test:watch`      | Modo watch para TDD                          |
-
----
-
-## Testes
-
-### Unitários
-
-Mockam o Prisma e testam a lógica dos services em isolamento. Rodam sem banco de dados.
-
-```bash
-npm run test:unit
-```
-
-### Integração
-
-Testam os endpoints HTTP end-to-end contra um banco PostgreSQL real.
-
-**Setup do banco de testes (apenas na primeira vez):**
-
-```bash
-createdb -U postgres atendimentos_test
-# O próprio Vitest aplica as migrations via globalSetup
-```
-
-```bash
-npm run test:integration
-```
-
-O arquivo `.env.test` configura o banco `atendimentos_test` automaticamente. Não interfere no banco de desenvolvimento.
+| Comando          | Descrição                                        |
+|------------------|--------------------------------------------------|
+| `npm run dev`    | Inicia com hot reload (nodemon + ts-node)        |
+| `npm run build`  | Compila TypeScript para `dist/`                  |
+| `npm start`      | Inicia a build compilada (`dist/main.js`)        |
+| `npm run seed`   | Cria o usuário admin padrão                      |
 
 ---
 
 ## Endpoints principais
 
-Todos os endpoints (exceto `/auth/login` e `/health`) exigem:
+Todos os endpoints (exceto `POST /auth/login` e `GET /health`) exigem:
 ```
 Authorization: Bearer <token>
 ```
@@ -156,13 +124,13 @@ Authorization: Bearer <token>
 | DELETE | /servicos/:id | Remover   |
 
 ### Salas
-| Método | Rota      | Descrição |
-|--------|-----------|-----------|
-| GET    | /salas    | Listar    |
-| GET    | /salas/:id| Buscar    |
-| POST   | /salas    | Criar     |
-| PUT    | /salas/:id| Atualizar |
-| DELETE | /salas/:id| Remover   |
+| Método | Rota       | Descrição |
+|--------|------------|-----------|
+| GET    | /salas     | Listar    |
+| GET    | /salas/:id | Buscar    |
+| POST   | /salas     | Criar     |
+| PUT    | /salas/:id | Atualizar |
+| DELETE | /salas/:id | Remover   |
 
 ### Pedidos
 | Método | Rota                    | Descrição                          |
