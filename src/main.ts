@@ -16,7 +16,7 @@ async function bootstrap() {
   app.useGlobalFilters(new AllExceptionsFilter());
 
   const swaggerConfig = new DocumentBuilder()
-    .setTitle('ERP Gestão Empresarial')
+    .setTitle('ERP DIAS SERVICES API')
     .setVersion('1.0')
     .addBearerAuth()
     .build();
