@@ -1,36 +1,35 @@
-import { z } from "zod";
-import { prisma } from "../../database/prisma";
-import { AppError } from "../../middlewares/AppError";
+import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { ServicoRepository } from './servico.repository';
+import { CreateServicoDto } from './dto/create-servico.dto';
+import { UpdateServicoDto } from './dto/update-servico.dto';
 
-export const createServicoSchema = z.object({
-  nome: z.string().min(1).max(100),
-  descricao: z.string().default(""),
-  duracao: z.number().int().positive(),
-  preco: z.number().nonnegative(),
-});
-export const updateServicoSchema = createServicoSchema.partial();
+@Injectable()
+export class ServicoService {
+  constructor(@Inject(ServicoRepository) private repository: ServicoRepository) {}
 
-export const servicoService = {
-  list: () => prisma.servico.findMany({ orderBy: { nome: "asc" } }),
+  list() {
+    return this.repository.findAll();
+  }
 
-  get: async (id: string) => {
-    const s = await prisma.servico.findUnique({ where: { id } });
-    if (!s) throw new AppError(404, "Serviço não encontrado");
-    return s;
-  },
+  async get(id: string) {
+    const servico = await this.repository.findById(id);
+    if (!servico) throw new NotFoundException('Serviço não encontrado');
+    return servico;
+  }
 
-  create: (data: z.infer<typeof createServicoSchema>) =>
-    prisma.servico.create({ data }),
+  create(data: CreateServicoDto) {
+    return this.repository.create(data);
+  }
 
-  update: async (id: string, data: z.infer<typeof updateServicoSchema>) => {
-    await servicoService.get(id);
-    return prisma.servico.update({ where: { id }, data });
-  },
+  async update(id: string, data: UpdateServicoDto) {
+    await this.get(id);
+    return this.repository.update(id, data);
+  }
 
-  remove: async (id: string) => {
-    await servicoService.get(id);
-    const emUso = await prisma.pedidoServico.findFirst({ where: { servicoId: id } });
-    if (emUso) throw new AppError(409, "Serviço está vinculado a pedidos e não pode ser removido");
-    await prisma.servico.delete({ where: { id } });
-  },
-};
+  async remove(id: string) {
+    await this.get(id);
+    const emUso = await this.repository.findPedidoServico(id);
+    if (emUso) throw new ConflictException('Serviço está vinculado a pedidos e não pode ser removido');
+    await this.repository.delete(id);
+  }
+}

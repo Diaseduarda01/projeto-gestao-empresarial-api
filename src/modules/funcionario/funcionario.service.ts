@@ -1,76 +1,63 @@
-import bcrypt from "bcryptjs";
-import { z } from "zod";
-import { prisma } from "../../database/prisma";
-import { AppError } from "../../middlewares/AppError";
+import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import bcrypt from 'bcryptjs';
+import { FuncionarioRepository } from './funcionario.repository';
+import { CreateFuncionarioDto } from './dto/create-funcionario.dto';
+import { UpdateFuncionarioDto } from './dto/update-funcionario.dto';
+import { AddServicosDto } from './dto/add-servicos.dto';
 
-export const createFuncSchema = z.object({
-  nome: z.string().min(1).max(120),
-  email: z.string().email(),
-  senha: z.string().min(6).max(100),
-});
-export const updateFuncSchema = createFuncSchema.partial();
+@Injectable()
+export class FuncionarioService {
+  constructor(@Inject(FuncionarioRepository) private repository: FuncionarioRepository) {}
 
-const PUBLIC_FIELDS = { id: true, nome: true, email: true, createdAt: true } as const;
+  list() {
+    return this.repository.findAll();
+  }
 
-export const funcionarioService = {
-  list: () =>
-    prisma.funcionario.findMany({
-      select: PUBLIC_FIELDS,
-      orderBy: { nome: "asc" },
-    }),
+  async get(id: string) {
+    const funcionario = await this.repository.findById(id);
+    if (!funcionario) throw new NotFoundException('Funcionário não encontrado');
+    return funcionario;
+  }
 
-  get: async (id: string) => {
-    const f = await prisma.funcionario.findUnique({ where: { id }, select: PUBLIC_FIELDS });
-    if (!f) throw new AppError(404, "Funcionário não encontrado");
-    return f;
-  },
-
-  create: async (data: z.infer<typeof createFuncSchema>) => {
+  async create(data: CreateFuncionarioDto) {
     const senha = await bcrypt.hash(data.senha, 10);
-    const f = await prisma.funcionario.create({ data: { ...data, senha } });
-    return { id: f.id, nome: f.nome, email: f.email, createdAt: f.createdAt };
-  },
+    return this.repository.create({ ...data, senha });
+  }
 
-  update: async (id: string, data: z.infer<typeof updateFuncSchema>) => {
-    await funcionarioService.get(id);
-    const payload: z.infer<typeof updateFuncSchema> & { senha?: string } = { ...data };
-    if (data.senha) payload.senha = await bcrypt.hash(data.senha, 10);
-    const f = await prisma.funcionario.update({ where: { id }, data: payload });
-    return { id: f.id, nome: f.nome, email: f.email, createdAt: f.createdAt };
-  },
-
-  remove: async (id: string) => {
-    await funcionarioService.get(id);
-    const agFuturo = await prisma.agendamento.findFirst({
-      where: { funcionarioId: id, status: "AGENDADO", horaInicio: { gte: new Date() } },
-    });
-    if (agFuturo) throw new AppError(409, "Funcionário possui agendamentos futuros e não pode ser removido");
-    await prisma.funcionario.delete({ where: { id } });
-  },
-
-  listServicos: (id: string) =>
-    prisma.funcionarioServico.findMany({
-      where: { funcionarioId: id },
-      include: { servico: true },
-    }),
-
-  addServicos: async (id: string, servicoIds: string[]) => {
-    await funcionarioService.get(id);
-    const servicos = await prisma.servico.findMany({ where: { id: { in: servicoIds } } });
-    if (servicos.length !== servicoIds.length) {
-      throw new AppError(404, "Um ou mais serviços não encontrados");
+  async update(id: string, data: UpdateFuncionarioDto) {
+    await this.get(id);
+    const payload: Partial<{ nome: string; email: string; senha: string }> = { ...data };
+    if (data.senha) {
+      payload.senha = await bcrypt.hash(data.senha, 10);
     }
-    await prisma.funcionarioServico.createMany({
-      data: servicoIds.map((servicoId) => ({ funcionarioId: id, servicoId })),
-      skipDuplicates: true,
-    });
-    return funcionarioService.listServicos(id);
-  },
+    return this.repository.update(id, payload);
+  }
 
-  removeServico: async (id: string, servicoId: string) => {
-    await funcionarioService.get(id);
-    await prisma.funcionarioServico.delete({
-      where: { funcionarioId_servicoId: { funcionarioId: id, servicoId } },
-    });
-  },
-};
+  async remove(id: string) {
+    await this.get(id);
+    const agFuturo = await this.repository.findAgendamentoFuturo(id);
+    if (agFuturo) {
+      throw new ConflictException('Funcionário possui agendamentos futuros e não pode ser removido');
+    }
+    await this.repository.delete(id);
+  }
+
+  listServicos(id: string) {
+    return this.repository.findServicos(id);
+  }
+
+  async addServicos(id: string, dto: AddServicosDto) {
+    await this.get(id);
+    const servicos = await this.repository.findServicosByIds(dto.servicoIds);
+    if (servicos.length !== dto.servicoIds.length) {
+      throw new NotFoundException('Um ou mais serviços não encontrados');
+    }
+    await this.repository.addServicos(id, dto.servicoIds);
+    return this.repository.findServicos(id);
+  }
+
+  async removeServico(id: string, servicoId: string) {
+    await this.get(id);
+    await this.repository.removeServico(id, servicoId);
+  }
+}

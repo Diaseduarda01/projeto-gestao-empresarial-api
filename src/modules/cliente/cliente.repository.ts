@@ -1,11 +1,27 @@
-import { prisma } from "../../database/prisma";
+import { Injectable, Inject } from '@nestjs/common';
+import { PrismaService } from '../../database/prisma.service';
 
-export const clienteRepository = {
-  create: (data: { nome: string; telefone: string; email: string }) =>
-    prisma.cliente.create({ data }),
-  findAll: () => prisma.cliente.findMany({ orderBy: { createdAt: "desc" } }),
-  findById: (id: string) => prisma.cliente.findUnique({ where: { id } }),
-  update: (id: string, data: Partial<{ nome: string; telefone: string; email: string }>) =>
-    prisma.cliente.update({ where: { id }, data }),
-  delete: (id: string) => prisma.cliente.delete({ where: { id } }),
-};
+@Injectable()
+export class ClienteRepository {
+  constructor(@Inject(PrismaService) private prisma: PrismaService) {}
+
+  create(data: { nome: string; telefone: string; email: string }) {
+    return this.prisma.cliente.create({ data });
+  }
+
+  findAll() {
+    return this.prisma.cliente.findMany({ orderBy: { createdAt: 'desc' } });
+  }
+
+  findById(id: string) {
+    return this.prisma.cliente.findUnique({ where: { id } });
+  }
+
+  update(id: string, data: Partial<{ nome: string; telefone: string; email: string }>) {
+    return this.prisma.cliente.update({ where: { id }, data });
+  }
+
+  delete(id: string) {
+    return this.prisma.cliente.delete({ where: { id } });
+  }
+}

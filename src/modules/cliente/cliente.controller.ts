@@ -1,15 +1,51 @@
-import { Request, Response } from "express";
-import { clienteService } from "./cliente.service";
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Inject,
+  Param,
+  ParseUUIDPipe,
+  Post,
+  Put,
+} from '@nestjs/common';
+import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
+import { ClienteService } from './cliente.service';
+import { CreateClienteDto } from './dto/create-cliente.dto';
+import { UpdateClienteDto } from './dto/update-cliente.dto';
 
-export const clienteController = {
-  create: async (req: Request, res: Response) =>
-    res.status(201).json(await clienteService.create(req.body)),
-  list: async (_req: Request, res: Response) => res.json(await clienteService.list()),
-  get: async (req: Request, res: Response) => res.json(await clienteService.get(req.params.id)),
-  update: async (req: Request, res: Response) =>
-    res.json(await clienteService.update(req.params.id, req.body)),
-  remove: async (req: Request, res: Response) => {
-    await clienteService.remove(req.params.id);
-    res.status(204).send();
-  },
-};
+@ApiTags('Clientes')
+@ApiBearerAuth()
+@Controller('clientes')
+export class ClienteController {
+  constructor(@Inject(ClienteService) private readonly clienteService: ClienteService) {}
+
+  @Post()
+  @HttpCode(HttpStatus.CREATED)
+  create(@Body() dto: CreateClienteDto) {
+    return this.clienteService.create(dto);
+  }
+
+  @Get()
+  list() {
+    return this.clienteService.list();
+  }
+
+  @Get(':id')
+  get(@Param('id', ParseUUIDPipe) id: string) {
+    return this.clienteService.get(id);
+  }
+
+  @Put(':id')
+  update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateClienteDto) {
+    return this.clienteService.update(id, dto);
+  }
+
+  @Delete(':id')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async remove(@Param('id', ParseUUIDPipe) id: string) {
+    await this.clienteService.remove(id);
+  }
+}

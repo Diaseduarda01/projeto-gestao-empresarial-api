@@ -1,79 +1,67 @@
-import { z } from "zod";
-import { prisma } from "../../database/prisma";
-import { AppError } from "../../middlewares/AppError";
+import {
+  ConflictException,
+  Inject,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { PedidoRepository } from './pedido.repository';
+import { CreatePedidoDto } from './dto/create-pedido.dto';
+import { AddServicosPedidoDto } from './dto/add-servicos-pedido.dto';
 
-export const createPedidoSchema = z.object({
-  clienteId: z.string().uuid(),
-  servicoIds: z.array(z.string().uuid()).min(1),
-});
+@Injectable()
+export class PedidoService {
+  constructor(@Inject(PedidoRepository) private repository: PedidoRepository) {}
 
-export const addServicosSchema = z.object({
-  servicoIds: z.array(z.string().uuid()).min(1),
-});
+  list() {
+    return this.repository.findAll();
+  }
 
-const WITH_RELATIONS = {
-  cliente: true,
-  servicos: { include: { servico: true } },
-  agendamento: true,
-} as const;
+  async get(id: string) {
+    const pedido = await this.repository.findById(id);
+    if (!pedido) throw new NotFoundException('Pedido não encontrado');
+    return pedido;
+  }
 
-export const pedidoService = {
-  list: () =>
-    prisma.pedido.findMany({
-      include: WITH_RELATIONS,
-      orderBy: { createdAt: "desc" },
-    }),
+  async create(data: CreatePedidoDto) {
+    const cliente = await this.repository.findClienteById(data.clienteId);
+    if (!cliente) throw new NotFoundException('Cliente não encontrado');
 
-  get: async (id: string) => {
-    const p = await prisma.pedido.findUnique({ where: { id }, include: WITH_RELATIONS });
-    if (!p) throw new AppError(404, "Pedido não encontrado");
-    return p;
-  },
-
-  create: async (data: z.infer<typeof createPedidoSchema>) => {
-    const cliente = await prisma.cliente.findUnique({ where: { id: data.clienteId } });
-    if (!cliente) throw new AppError(404, "Cliente não encontrado");
-
-    const servicos = await prisma.servico.findMany({ where: { id: { in: data.servicoIds } } });
+    const servicos = await this.repository.findServicosByIds(data.servicoIds);
     if (servicos.length !== data.servicoIds.length) {
-      throw new AppError(404, "Um ou mais serviços não encontrados");
+      throw new NotFoundException('Um ou mais serviços não encontrados');
     }
 
-    return prisma.pedido.create({
-      data: {
-        clienteId: data.clienteId,
-        servicos: { create: data.servicoIds.map((servicoId) => ({ servicoId })) },
-      },
-      include: WITH_RELATIONS,
-    });
-  },
+    return this.repository.create(data.clienteId, data.servicoIds);
+  }
 
-  addServicos: async (id: string, servicoIds: string[]) => {
-    const pedido = await prisma.pedido.findUnique({ where: { id } });
-    if (!pedido) throw new AppError(404, "Pedido não encontrado");
-    if (pedido.status !== "ABERTO") {
-      throw new AppError(409, `Não é possível adicionar serviços a um pedido com status ${pedido.status}`);
+  async addServicos(id: string, dto: AddServicosPedidoDto) {
+    const pedido = await this.repository.findPedidoRaw(id);
+    if (!pedido) throw new NotFoundException('Pedido não encontrado');
+    if (pedido.status !== 'ABERTO') {
+      throw new ConflictException(
+        `Não é possível adicionar serviços a um pedido com status ${pedido.status}`,
+      );
     }
 
-    const servicos = await prisma.servico.findMany({ where: { id: { in: servicoIds } } });
-    if (servicos.length !== servicoIds.length) {
-      throw new AppError(404, "Um ou mais serviços não encontrados");
+    const servicos = await this.repository.findServicosByIds(dto.servicoIds);
+    if (servicos.length !== dto.servicoIds.length) {
+      throw new NotFoundException('Um ou mais serviços não encontrados');
     }
 
-    await prisma.pedidoServico.createMany({
-      data: servicoIds.map((servicoId) => ({ pedidoId: id, servicoId })),
-      skipDuplicates: true,
-    });
+    await this.repository.addServicos(id, dto.servicoIds);
+    return this.repository.findById(id);
+  }
 
-    return prisma.pedido.findUnique({ where: { id }, include: WITH_RELATIONS });
-  },
+  async cancel(id: string) {
+    const pedido = await this.repository.findPedidoRaw(id);
+    if (!pedido) throw new NotFoundException('Pedido não encontrado');
+    if (pedido.status === 'CANCELADO') {
+      throw new ConflictException('Pedido já está cancelado');
+    }
+    if (pedido.status === 'CONCLUIDO') {
+      throw new ConflictException('Pedido concluído não pode ser cancelado');
+    }
 
-  cancel: async (id: string) => {
-    const pedido = await prisma.pedido.findUnique({ where: { id } });
-    if (!pedido) throw new AppError(404, "Pedido não encontrado");
-    if (pedido.status === "CANCELADO") throw new AppError(409, "Pedido já está cancelado");
-    if (pedido.status === "CONCLUIDO") throw new AppError(409, "Pedido concluído não pode ser cancelado");
-
-    return prisma.pedido.update({ where: { id }, data: { status: "CANCELADO" } });
-  },
-};
+    return this.repository.updateStatus(id, 'CANCELADO');
+  }
+}

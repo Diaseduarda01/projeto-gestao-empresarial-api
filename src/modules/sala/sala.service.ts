@@ -1,36 +1,35 @@
-import { z } from "zod";
-import { prisma } from "../../database/prisma";
-import { AppError } from "../../middlewares/AppError";
+import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { SalaRepository } from './sala.repository';
+import { CreateSalaDto } from './dto/create-sala.dto';
+import { UpdateSalaDto } from './dto/update-sala.dto';
 
-export const createSalaSchema = z.object({
-  nome: z.string().min(1).max(100),
-  descricao: z.string().default(""),
-});
-export const updateSalaSchema = createSalaSchema.partial();
+@Injectable()
+export class SalaService {
+  constructor(@Inject(SalaRepository) private repository: SalaRepository) {}
 
-export const salaService = {
-  list: () => prisma.sala.findMany({ orderBy: { nome: "asc" } }),
+  list() {
+    return this.repository.findAll();
+  }
 
-  get: async (id: string) => {
-    const s = await prisma.sala.findUnique({ where: { id } });
-    if (!s) throw new AppError(404, "Sala não encontrada");
-    return s;
-  },
+  async get(id: string) {
+    const sala = await this.repository.findById(id);
+    if (!sala) throw new NotFoundException('Sala não encontrada');
+    return sala;
+  }
 
-  create: (data: z.infer<typeof createSalaSchema>) =>
-    prisma.sala.create({ data }),
+  create(data: CreateSalaDto) {
+    return this.repository.create(data);
+  }
 
-  update: async (id: string, data: z.infer<typeof updateSalaSchema>) => {
-    await salaService.get(id);
-    return prisma.sala.update({ where: { id }, data });
-  },
+  async update(id: string, data: UpdateSalaDto) {
+    await this.get(id);
+    return this.repository.update(id, data);
+  }
 
-  remove: async (id: string) => {
-    await salaService.get(id);
-    const agFuturo = await prisma.agendamento.findFirst({
-      where: { salaId: id, status: "AGENDADO", horaInicio: { gte: new Date() } },
-    });
-    if (agFuturo) throw new AppError(409, "Sala possui agendamentos futuros e não pode ser removida");
-    await prisma.sala.delete({ where: { id } });
-  },
-};
+  async remove(id: string) {
+    await this.get(id);
+    const agFuturo = await this.repository.findAgendamentoFuturo(id);
+    if (agFuturo) throw new ConflictException('Sala possui agendamentos futuros e não pode ser removida');
+    await this.repository.delete(id);
+  }
+}
