@@ -10,11 +10,14 @@ import {
   ParseUUIDPipe,
   Post,
   Put,
+  Query,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { ServicoService } from './servico.service';
 import { CreateServicoDto } from './dto/create-servico.dto';
 import { UpdateServicoDto } from './dto/update-servico.dto';
+import { CurrentUser, UserPayload } from '../../common/decorators/current-user.decorator';
+import { PaginationDto } from '../../common/dto/pagination.dto';
 
 @ApiTags('Serviços')
 @ApiBearerAuth()
@@ -24,28 +27,32 @@ export class ServicoController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  create(@Body() dto: CreateServicoDto) {
-    return this.servicoService.create(dto);
+  create(@CurrentUser() user: UserPayload, @Body() dto: CreateServicoDto) {
+    return this.servicoService.create(dto, user.empresaId);
   }
 
   @Get()
-  list() {
-    return this.servicoService.list();
+  list(@CurrentUser() user: UserPayload, @Query() pagination: PaginationDto) {
+    return this.servicoService.list(user.empresaId, pagination.page, pagination.limit);
   }
 
   @Get(':id')
-  get(@Param('id', ParseUUIDPipe) id: string) {
-    return this.servicoService.get(id);
+  get(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: UserPayload) {
+    return this.servicoService.get(id, user.empresaId);
   }
 
   @Put(':id')
-  update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateServicoDto) {
-    return this.servicoService.update(id, dto);
+  update(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: UserPayload,
+    @Body() dto: UpdateServicoDto,
+  ) {
+    return this.servicoService.update(id, user.empresaId, dto);
   }
 
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
-  async remove(@Param('id', ParseUUIDPipe) id: string) {
-    await this.servicoService.remove(id);
+  async remove(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: UserPayload) {
+    await this.servicoService.remove(id, user.empresaId);
   }
 }

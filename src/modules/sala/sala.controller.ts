@@ -10,11 +10,14 @@ import {
   ParseUUIDPipe,
   Post,
   Put,
+  Query,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { SalaService } from './sala.service';
 import { CreateSalaDto } from './dto/create-sala.dto';
 import { UpdateSalaDto } from './dto/update-sala.dto';
+import { CurrentUser, UserPayload } from '../../common/decorators/current-user.decorator';
+import { PaginationDto } from '../../common/dto/pagination.dto';
 
 @ApiTags('Salas')
 @ApiBearerAuth()
@@ -24,28 +27,32 @@ export class SalaController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  create(@Body() dto: CreateSalaDto) {
-    return this.salaService.create(dto);
+  create(@CurrentUser() user: UserPayload, @Body() dto: CreateSalaDto) {
+    return this.salaService.create(dto, user.empresaId);
   }
 
   @Get()
-  list() {
-    return this.salaService.list();
+  list(@CurrentUser() user: UserPayload, @Query() pagination: PaginationDto) {
+    return this.salaService.list(user.empresaId, pagination.page, pagination.limit);
   }
 
   @Get(':id')
-  get(@Param('id', ParseUUIDPipe) id: string) {
-    return this.salaService.get(id);
+  get(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: UserPayload) {
+    return this.salaService.get(id, user.empresaId);
   }
 
   @Put(':id')
-  update(@Param('id', ParseUUIDPipe) id: string, @Body() dto: UpdateSalaDto) {
-    return this.salaService.update(id, dto);
+  update(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: UserPayload,
+    @Body() dto: UpdateSalaDto,
+  ) {
+    return this.salaService.update(id, user.empresaId, dto);
   }
 
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
-  async remove(@Param('id', ParseUUIDPipe) id: string) {
-    await this.salaService.remove(id);
+  async remove(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: UserPayload) {
+    await this.salaService.remove(id, user.empresaId);
   }
 }

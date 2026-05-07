@@ -7,45 +7,45 @@ para múltiplas empresas (estúdios de tatuagem, clínicas de estética, barbear
 
 ## 🔴 PRIORIDADE 1 — Segurança
 
-- [ ] Restringir CORS por origem (`cors({ origin: process.env.ALLOWED_ORIGINS })`)
-- [ ] Adicionar rate limiting no login (`express-rate-limit`) — máximo de tentativas por IP
-- [ ] Adicionar `helmet` para headers de segurança HTTP (CSP, HSTS, X-Frame-Options)
-- [ ] Remover fallback inseguro do `JWT_SECRET` (`?? "dev-secret"` em `config/env.ts`)
-- [ ] Implementar refresh token (short-lived access token + long-lived refresh token)
-- [ ] Implementar blacklist de tokens (Redis) para logout e revogação imediata
-- [ ] Implementar RBAC — papéis: `ADMIN`, `GERENTE`, `ATENDENTE` no modelo `Funcionario`
-- [ ] Aplicar guards de permissão por rota (ex: só ADMIN pode deletar funcionários)
-- [ ] Validar formato UUID nos params de rota antes de consultar o banco
-- [ ] Verificar se o funcionário ainda existe ao validar o JWT no `authMiddleware`
-- [ ] Implementar recuperação de senha por email (link com token temporário)
+- [x] Restringir CORS por origem (`ALLOWED_ORIGINS` no env — restringe em prod, avisa em dev)
+- [x] Adicionar rate limiting no login (`@nestjs/throttler` — 5 tentativas/min no login, 3 no recuperar-senha)
+- [x] Adicionar `helmet` para headers de segurança HTTP (CSP, HSTS, X-Frame-Options)
+- [x] Remover fallback inseguro do `JWT_SECRET` (`?? "dev-secret"` removido de `env.ts` e `jwt.strategy.ts`)
+- [x] Implementar refresh token (access token 15min + refresh token UUID em DB com 7 dias — `POST /auth/refresh`)
+- [x] Implementar blacklist de tokens (DB-based JTI blacklist — `BlacklistedToken` table, `POST /auth/logout`)
+- [x] Implementar RBAC — papéis: `ADMIN`, `GERENTE`, `ATENDENTE` no modelo `Funcionario` (enum `Role`)
+- [x] Aplicar guards de permissão por rota (`RolesGuard` + `@Roles()` — ex: só `ADMIN` pode deletar funcionário)
+- [x] Validar formato UUID nos params de rota antes de consultar o banco (`ParseUUIDPipe` já estava em todos controllers)
+- [x] Verificar se o funcionário ainda existe ao validar o JWT (`JwtStrategy.validate()` consulta DB)
+- [x] Implementar recuperação de senha por email (link com token temporário — `POST /auth/recuperar-senha` + `POST /auth/redefinir-senha`)
 
 ---
 
 ## 🔴 PRIORIDADE 2 — Multitenancy (obrigatório para ERP SaaS)
 
-- [ ] Criar modelo `Empresa` no schema Prisma (`id, nome, slug, plano, ativo, createdAt`)
-- [ ] Adicionar `empresaId` em todos os modelos: `Cliente`, `Funcionario`, `Servico`, `Sala`, `Pedido`, `Agendamento`
-- [ ] Vincular `Funcionario` a uma `Empresa` (relação N:M para suportar funcionário em múltiplas filiais)
-- [ ] Injetar `empresaId` no JWT e no `AuthRequest` via `authMiddleware`
-- [ ] Filtrar todos os `findMany` / `findUnique` por `empresaId` do usuário autenticado
-- [ ] Criar rota de onboarding de nova empresa (`POST /empresas`)
-- [ ] Criar rota de convite de funcionário por email
-- [ ] Criar seed por empresa (não apenas o admin global)
+- [x] Criar modelo `Empresa` no schema Prisma (`id, nome, slug, plano, ativo, createdAt`)
+- [x] Adicionar `empresaId` em todos os modelos: `Cliente`, `Funcionario`, `Servico`, `Sala`, `Pedido`, `Agendamento`
+- [x] Vincular `Funcionario` a uma `Empresa` (relação N:M via `FuncionarioEmpresa` — suporta múltiplas filiais)
+- [x] Injetar `empresaId` no JWT e no `UserPayload` via `@CurrentUser()` decorator
+- [x] Filtrar todos os `findMany` / `findUnique` por `empresaId` do usuário autenticado
+- [x] Criar rota de onboarding de nova empresa (`POST /empresas`)
+- [x] Criar rota de convite de funcionário por email (`POST /empresas/minha/convidar-funcionario`)
+- [x] Criar seed por empresa (seed atualizado — cria Empresa Padrão + admin vinculado via FuncionarioEmpresa)
 
 ---
 
 ## 🔴 PRIORIDADE 3 — Performance e escalabilidade
 
-- [ ] Adicionar paginação em todas as listagens (`?page=1&limit=20` com `take`/`skip` no Prisma)
-- [ ] Configurar `connection_limit` no `PrismaClient` (`datasources.db.url` com `connection_limit=10`)
-- [ ] Adicionar middleware de compressão HTTP (`compression` do npm)
-- [ ] Criar índice em `agendamentos.data` no schema Prisma
-- [ ] Criar índice em `pedidos.status` e `pedidos.clienteId`
-- [ ] Criar índice em `clientes.nome` para busca textual
-- [ ] Adicionar `updatedAt` nos modelos `Servico`, `Sala`, `Pedido`
-- [ ] Configurar PM2 ou cluster mode para aproveitar múltiplos núcleos de CPU
-- [ ] Implementar cache com Redis para dados estáticos (lista de serviços, salas)
-- [ ] Adicionar `ETag` / `Cache-Control` nas respostas de listagem
+- [x] Adicionar paginação em todas as listagens (`?page=1&limit=20` — retorna `{ data, total, page, limit }`)
+- [x] Configurar `connection_limit` no `PrismaClient` (via `DB_CONNECTION_LIMIT` env — default 10, appended to DATABASE_URL)
+- [x] Adicionar middleware de compressão HTTP (`compression` do npm — ativo em `main.ts`)
+- [x] Criar índice em `agendamentos.data` no schema Prisma
+- [x] Criar índice em `pedidos.status` e `pedidos.clienteId`
+- [x] Criar índice em `clientes.nome` para busca textual
+- [x] Adicionar `updatedAt` nos modelos `Servico`, `Sala`, `Pedido`
+- [x] Configurar PM2 cluster mode (`ecosystem.config.js` com `instances: 'max'`, `exec_mode: 'cluster'`)
+- [x] Implementar cache in-memory para dados estáticos (servicos e salas — `@nestjs/cache-manager`, TTL 60s, pronto para Redis)
+- [x] Adicionar `ETag` / `Cache-Control` nas respostas de listagem (`ETagInterceptor` global — suporta 304 Not Modified)
 
 ---
 

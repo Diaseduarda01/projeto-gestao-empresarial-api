@@ -7,16 +7,16 @@ import { UpdateSalaDto } from './dto/update-sala.dto';
 export class SalaRepository {
   constructor(@Inject(PrismaService) private prisma: PrismaService) {}
 
-  findAll() {
-    return this.prisma.sala.findMany({ orderBy: { nome: 'asc' } });
+  findAll(empresaId: string) {
+    return this.prisma.sala.findMany({ where: { empresaId }, orderBy: { nome: 'asc' } });
   }
 
-  findById(id: string) {
-    return this.prisma.sala.findUnique({ where: { id } });
+  findById(id: string, empresaId: string) {
+    return this.prisma.sala.findFirst({ where: { id, empresaId } });
   }
 
-  create(data: CreateSalaDto) {
-    return this.prisma.sala.create({ data });
+  create(data: CreateSalaDto, empresaId: string) {
+    return this.prisma.sala.create({ data: { ...data, empresaId } });
   }
 
   update(id: string, data: UpdateSalaDto) {
@@ -27,9 +27,9 @@ export class SalaRepository {
     return this.prisma.sala.delete({ where: { id } });
   }
 
-  findAgendamentoFuturo(salaId: string) {
+  findAgendamentoFuturo(salaId: string, empresaId: string) {
     return this.prisma.agendamento.findFirst({
-      where: { salaId, status: 'AGENDADO', horaInicio: { gte: new Date() } },
+      where: { salaId, empresaId, status: 'AGENDADO', horaInicio: { gte: new Date() } },
     });
   }
 }

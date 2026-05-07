@@ -7,37 +7,89 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+enum Role {
+  ADMIN
+  GERENTE
+  ATENDENTE
+}
+
+enum Plano {
+  BASICO
+  PROFISSIONAL
+  ENTERPRISE
+}
+
+model Empresa {
+  id            String               @id @default(uuid())
+  nome          String
+  slug          String               @unique
+  plano         Plano                @default(BASICO)
+  ativo         Boolean              @default(true)
+  createdAt     DateTime             @default(now()) @map("created_at")
+  clientes      Cliente[]
+  servicos      Servico[]
+  salas         Sala[]
+  pedidos       Pedido[]
+  agendamentos  Agendamento[]
+  funcionarios  FuncionarioEmpresa[]
+  refreshTokens RefreshToken[]
+
+  @@map("empresas")
+}
+
+model FuncionarioEmpresa {
+  funcionarioId String      @map("funcionario_id")
+  empresaId     String      @map("empresa_id")
+  papel         Role        @default(ATENDENTE)
+  createdAt     DateTime    @default(now()) @map("created_at")
+  funcionario   Funcionario @relation(fields: [funcionarioId], references: [id], onDelete: Cascade)
+  empresa       Empresa     @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+
+  @@id([funcionarioId, empresaId])
+  @@map("funcionario_empresas")
+}
+
 model Cliente {
   id        String   @id @default(uuid())
   nome      String
   telefone  String
-  email     String   @unique
+  email     String
+  empresaId String   @map("empresa_id")
   createdAt DateTime @default(now()) @map("created_at")
   pedidos   Pedido[]
+  empresa   Empresa  @relation(fields: [empresaId], references: [id], onDelete: Cascade)
 
+  @@unique([email, empresaId])
+  @@index([nome])
   @@map("clientes")
 }
 
 model Funcionario {
-  id            String               @id @default(uuid())
-  nome          String
-  email         String               @unique
-  senha         String
-  createdAt     DateTime             @default(now()) @map("created_at")
-  agendamentos  Agendamento[]
-  servicos      FuncionarioServico[]
+  id                  String               @id @default(uuid())
+  nome                String
+  email               String               @unique
+  senha               String
+  createdAt           DateTime             @default(now()) @map("created_at")
+  agendamentos        Agendamento[]
+  servicos            FuncionarioServico[]
+  empresas            FuncionarioEmpresa[]
+  refreshTokens       RefreshToken[]
+  passwordResetTokens PasswordResetToken[]
 
   @@map("funcionarios")
 }
 
 model Servico {
-  id            String               @id @default(uuid())
-  nome          String
-  descricao     String
-  duracao       Int
-  preco         Decimal              @db.Decimal(10, 2)
-  pedidos       PedidoServico[]
-  funcionarios  FuncionarioServico[]
+  id           String               @id @default(uuid())
+  nome         String
+  descricao    String
+  duracao      Int
+  preco        Decimal              @db.Decimal(10, 2)
+  empresaId    String               @map("empresa_id")
+  updatedAt    DateTime             @updatedAt @map("updated_at")
+  pedidos      PedidoServico[]
+  funcionarios FuncionarioServico[]
+  empresa      Empresa              @relation(fields: [empresaId], references: [id], onDelete: Cascade)
 
   @@map("servicos")
 }
@@ -53,10 +105,13 @@ model FuncionarioServico {
 }
 
 model Sala {
-  id           String         @id @default(uuid())
+  id           String        @id @default(uuid())
   nome         String
   descricao    String
+  empresaId    String        @map("empresa_id")
+  updatedAt    DateTime      @updatedAt @map("updated_at")
   agendamentos Agendamento[]
+  empresa      Empresa       @relation(fields: [empresaId], references: [id], onDelete: Cascade)
 
   @@map("salas")
 }
@@ -71,12 +126,17 @@ enum PedidoStatus {
 model Pedido {
   id          String          @id @default(uuid())
   clienteId   String          @map("cliente_id")
+  empresaId   String          @map("empresa_id")
   status      PedidoStatus    @default(ABERTO)
   createdAt   DateTime        @default(now()) @map("created_at")
+  updatedAt   DateTime        @updatedAt @map("updated_at")
   cliente     Cliente         @relation(fields: [clienteId], references: [id])
+  empresa     Empresa         @relation(fields: [empresaId], references: [id], onDelete: Cascade)
   servicos    PedidoServico[]
   agendamento Agendamento?
 
+  @@index([status])
+  @@index([clienteId])
   @@map("pedidos")
 }
 
@@ -97,19 +157,55 @@ enum AgendamentoStatus {
 }
 
 model Agendamento {
-  id             String            @id @default(uuid())
-  pedidoId       String            @unique @map("pedido_id")
-  funcionarioId  String            @map("funcionario_id")
-  salaId         String            @map("sala_id")
-  data           DateTime          @db.Date
-  horaInicio    DateTime           @map("hora_inicio") @db.Timestamp(6)
-  horaFim       DateTime           @map("hora_fim") @db.Timestamp(6)
-  status         AgendamentoStatus @default(AGENDADO)
-  pedido         Pedido            @relation(fields: [pedidoId], references: [id])
-  funcionario    Funcionario       @relation(fields: [funcionarioId], references: [id])
-  sala           Sala              @relation(fields: [salaId], references: [id])
+  id            String            @id @default(uuid())
+  pedidoId      String            @unique @map("pedido_id")
+  funcionarioId String            @map("funcionario_id")
+  salaId        String            @map("sala_id")
+  empresaId     String            @map("empresa_id")
+  data          DateTime          @db.Date
+  horaInicio    DateTime          @map("hora_inicio") @db.Timestamp(6)
+  horaFim       DateTime          @map("hora_fim") @db.Timestamp(6)
+  status        AgendamentoStatus @default(AGENDADO)
+  pedido        Pedido            @relation(fields: [pedidoId], references: [id])
+  funcionario   Funcionario       @relation(fields: [funcionarioId], references: [id])
+  sala          Sala              @relation(fields: [salaId], references: [id])
+  empresa       Empresa           @relation(fields: [empresaId], references: [id], onDelete: Cascade)
 
   @@index([funcionarioId, horaInicio])
   @@index([salaId, horaInicio])
+  @@index([data])
   @@map("agendamentos")
+}
+
+model RefreshToken {
+  id            String      @id @default(uuid())
+  token         String      @unique
+  funcionarioId String      @map("funcionario_id")
+  empresaId     String      @map("empresa_id")
+  expiresAt     DateTime    @map("expires_at")
+  revokedAt     DateTime?   @map("revoked_at")
+  createdAt     DateTime    @default(now()) @map("created_at")
+  funcionario   Funcionario @relation(fields: [funcionarioId], references: [id], onDelete: Cascade)
+  empresa       Empresa     @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+
+  @@map("refresh_tokens")
+}
+
+model PasswordResetToken {
+  id            String      @id @default(uuid())
+  token         String      @unique
+  funcionarioId String      @map("funcionario_id")
+  expiresAt     DateTime    @map("expires_at")
+  usedAt        DateTime?   @map("used_at")
+  createdAt     DateTime    @default(now()) @map("created_at")
+  funcionario   Funcionario @relation(fields: [funcionarioId], references: [id], onDelete: Cascade)
+
+  @@map("password_reset_tokens")
+}
+
+model BlacklistedToken {
+  jti       String   @id
+  expiresAt DateTime @map("expires_at")
+
+  @@map("blacklisted_tokens")
 }

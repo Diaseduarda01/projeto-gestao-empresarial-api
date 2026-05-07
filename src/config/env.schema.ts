@@ -5,6 +5,15 @@ export const envSchema = z.object({
   PORT: z.coerce.number().default(3333),
   DATABASE_URL: z.string().min(1, 'DATABASE_URL é obrigatória'),
   JWT_SECRET: z.string().min(1, 'JWT_SECRET é obrigatório'),
+  JWT_EXPIRES_IN: z.string().default('15m'),
+  ALLOWED_ORIGINS: z.string().optional(),
+  FRONTEND_URL: z.string().default('http://localhost:3000'),
+  SMTP_HOST: z.string().optional(),
+  SMTP_PORT: z.coerce.number().default(587),
+  SMTP_USER: z.string().optional(),
+  SMTP_PASS: z.string().optional(),
+  SMTP_FROM: z.string().default('noreply@erpdias.com'),
+  DB_CONNECTION_LIMIT: z.coerce.number().int().min(1).default(10),
 });
 
 export type Env = z.infer<typeof envSchema>;

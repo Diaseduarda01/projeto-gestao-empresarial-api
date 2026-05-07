@@ -7,27 +7,29 @@ import { UpdateClienteDto } from './dto/update-cliente.dto';
 export class ClienteService {
   constructor(@Inject(ClienteRepository) private repository: ClienteRepository) {}
 
-  create(data: CreateClienteDto) {
-    return this.repository.create(data);
+  create(data: CreateClienteDto, empresaId: string) {
+    return this.repository.create(data, empresaId);
   }
 
-  list() {
-    return this.repository.findAll();
+  async list(empresaId: string, page: number, limit: number) {
+    const skip = (page - 1) * limit;
+    const { data, total } = await this.repository.findAll(empresaId, skip, limit);
+    return { data, total, page, limit };
   }
 
-  async get(id: string) {
-    const cliente = await this.repository.findById(id);
+  async get(id: string, empresaId: string) {
+    const cliente = await this.repository.findById(id, empresaId);
     if (!cliente) throw new NotFoundException('Cliente não encontrado');
     return cliente;
   }
 
-  async update(id: string, data: UpdateClienteDto) {
-    await this.get(id);
+  async update(id: string, empresaId: string, data: UpdateClienteDto) {
+    await this.get(id, empresaId);
     return this.repository.update(id, data);
   }
 
-  async remove(id: string) {
-    await this.get(id);
+  async remove(id: string, empresaId: string) {
+    await this.get(id, empresaId);
     return this.repository.delete(id);
   }
 }

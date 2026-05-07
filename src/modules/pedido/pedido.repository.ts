@@ -11,37 +11,45 @@ const WITH_RELATIONS = {
 export class PedidoRepository {
   constructor(@Inject(PrismaService) private prisma: PrismaService) {}
 
-  findAll() {
-    return this.prisma.pedido.findMany({
-      include: WITH_RELATIONS,
-      orderBy: { createdAt: 'desc' },
-    });
+  async findAll(empresaId: string, skip: number, take: number) {
+    const [data, total] = await Promise.all([
+      this.prisma.pedido.findMany({
+        where: { empresaId },
+        include: WITH_RELATIONS,
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take,
+      }),
+      this.prisma.pedido.count({ where: { empresaId } }),
+    ]);
+    return { data, total };
   }
 
-  findById(id: string) {
-    return this.prisma.pedido.findUnique({ where: { id }, include: WITH_RELATIONS });
+  findById(id: string, empresaId: string) {
+    return this.prisma.pedido.findFirst({ where: { id, empresaId }, include: WITH_RELATIONS });
   }
 
-  findClienteById(clienteId: string) {
-    return this.prisma.cliente.findUnique({ where: { id: clienteId } });
+  findClienteById(clienteId: string, empresaId: string) {
+    return this.prisma.cliente.findFirst({ where: { id: clienteId, empresaId } });
   }
 
-  findServicosByIds(ids: string[]) {
-    return this.prisma.servico.findMany({ where: { id: { in: ids } } });
+  findServicosByIds(ids: string[], empresaId: string) {
+    return this.prisma.servico.findMany({ where: { id: { in: ids }, empresaId } });
   }
 
-  create(clienteId: string, servicoIds: string[]) {
+  create(clienteId: string, servicoIds: string[], empresaId: string) {
     return this.prisma.pedido.create({
       data: {
         clienteId,
+        empresaId,
         servicos: { create: servicoIds.map((servicoId) => ({ servicoId })) },
       },
       include: WITH_RELATIONS,
     });
   }
 
-  findPedidoRaw(id: string) {
-    return this.prisma.pedido.findUnique({ where: { id } });
+  findPedidoRaw(id: string, empresaId: string) {
+    return this.prisma.pedido.findFirst({ where: { id, empresaId } });
   }
 
   addServicos(pedidoId: string, servicoIds: string[]) {

@@ -5,6 +5,7 @@ export const createFuncionarioSchema = z.object({
   nome: z.string().min(1).max(120),
   email: z.string().email(),
   senha: z.string().min(6).max(100),
+  papel: z.enum(['ADMIN', 'GERENTE', 'ATENDENTE']).optional(),
 });
 
 export class CreateFuncionarioDto extends createZodDto(createFuncionarioSchema) {}

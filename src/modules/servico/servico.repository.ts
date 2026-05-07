@@ -7,16 +7,16 @@ import { UpdateServicoDto } from './dto/update-servico.dto';
 export class ServicoRepository {
   constructor(@Inject(PrismaService) private prisma: PrismaService) {}
 
-  findAll() {
-    return this.prisma.servico.findMany({ orderBy: { nome: 'asc' } });
+  findAll(empresaId: string) {
+    return this.prisma.servico.findMany({ where: { empresaId }, orderBy: { nome: 'asc' } });
   }
 
-  findById(id: string) {
-    return this.prisma.servico.findUnique({ where: { id } });
+  findById(id: string, empresaId: string) {
+    return this.prisma.servico.findFirst({ where: { id, empresaId } });
   }
 
-  create(data: CreateServicoDto) {
-    return this.prisma.servico.create({ data });
+  create(data: CreateServicoDto, empresaId: string) {
+    return this.prisma.servico.create({ data: { ...data, empresaId } });
   }
 
   update(id: string, data: UpdateServicoDto) {
@@ -27,7 +27,9 @@ export class ServicoRepository {
     return this.prisma.servico.delete({ where: { id } });
   }
 
-  findPedidoServico(servicoId: string) {
-    return this.prisma.pedidoServico.findFirst({ where: { servicoId } });
+  findPedidoServico(servicoId: string, empresaId: string) {
+    return this.prisma.pedidoServico.findFirst({
+      where: { servicoId, pedido: { empresaId } },
+    });
   }
 }
