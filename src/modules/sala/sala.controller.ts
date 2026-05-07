@@ -18,12 +18,16 @@ import { CreateSalaDto } from './dto/create-sala.dto';
 import { UpdateSalaDto } from './dto/update-sala.dto';
 import { CurrentUser, UserPayload } from '../../common/decorators/current-user.decorator';
 import { PaginationDto } from '../../common/dto/pagination.dto';
+import { AuditService } from '../../common/audit/audit.service';
 
 @ApiTags('Salas')
 @ApiBearerAuth()
 @Controller('salas')
 export class SalaController {
-  constructor(@Inject(SalaService) private readonly salaService: SalaService) {}
+  constructor(
+    @Inject(SalaService) private readonly salaService: SalaService,
+    @Inject(AuditService) private readonly auditService: AuditService,
+  ) {}
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
@@ -54,5 +58,12 @@ export class SalaController {
   @HttpCode(HttpStatus.NO_CONTENT)
   async remove(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: UserPayload) {
     await this.salaService.remove(id, user.empresaId);
+    this.auditService.log({
+      empresaId: user.empresaId,
+      userId: user.userId,
+      acao: 'DELETE',
+      entidade: 'Sala',
+      entidadeId: id,
+    });
   }
 }

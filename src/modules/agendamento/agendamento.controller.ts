@@ -16,12 +16,16 @@ import { AgendamentoService } from './agendamento.service';
 import { CreateAgendamentoDto } from './dto/create-agendamento.dto';
 import { CurrentUser, UserPayload } from '../../common/decorators/current-user.decorator';
 import { PaginationDto } from '../../common/dto/pagination.dto';
+import { AuditService } from '../../common/audit/audit.service';
 
 @ApiTags('Agendamentos')
 @ApiBearerAuth()
 @Controller('agendamentos')
 export class AgendamentoController {
-  constructor(@Inject(AgendamentoService) private readonly agendamentoService: AgendamentoService) {}
+  constructor(
+    @Inject(AgendamentoService) private readonly agendamentoService: AgendamentoService,
+    @Inject(AuditService) private readonly auditService: AuditService,
+  ) {}
 
   @Get()
   list(
@@ -39,19 +43,43 @@ export class AgendamentoController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
-  create(@CurrentUser() user: UserPayload, @Body() dto: CreateAgendamentoDto) {
-    return this.agendamentoService.create(dto, user.empresaId);
+  async create(@CurrentUser() user: UserPayload, @Body() dto: CreateAgendamentoDto) {
+    const result = await this.agendamentoService.create(dto, user.empresaId);
+    this.auditService.log({
+      empresaId: user.empresaId,
+      userId: user.userId,
+      acao: 'CRIAR',
+      entidade: 'Agendamento',
+      entidadeId: result.id,
+    });
+    return result;
   }
 
   @Patch(':id/cancelar')
   @HttpCode(HttpStatus.OK)
-  cancel(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: UserPayload) {
-    return this.agendamentoService.cancel(id, user.empresaId);
+  async cancel(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: UserPayload) {
+    const result = await this.agendamentoService.cancel(id, user.empresaId);
+    this.auditService.log({
+      empresaId: user.empresaId,
+      userId: user.userId,
+      acao: 'CANCELAR',
+      entidade: 'Agendamento',
+      entidadeId: id,
+    });
+    return result;
   }
 
   @Patch(':id/concluir')
   @HttpCode(HttpStatus.OK)
-  conclude(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: UserPayload) {
-    return this.agendamentoService.conclude(id, user.empresaId);
+  async conclude(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: UserPayload) {
+    const result = await this.agendamentoService.conclude(id, user.empresaId);
+    this.auditService.log({
+      empresaId: user.empresaId,
+      userId: user.userId,
+      acao: 'CONCLUIR',
+      entidade: 'Agendamento',
+      entidadeId: id,
+    });
+    return result;
   }
 }

@@ -21,12 +21,16 @@ import { AddServicosDto } from './dto/add-servicos.dto';
 import { CurrentUser, UserPayload } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { PaginationDto } from '../../common/dto/pagination.dto';
+import { AuditService } from '../../common/audit/audit.service';
 
 @ApiTags('Funcionários')
 @ApiBearerAuth()
 @Controller('funcionarios')
 export class FuncionarioController {
-  constructor(@Inject(FuncionarioService) private readonly funcionarioService: FuncionarioService) {}
+  constructor(
+    @Inject(FuncionarioService) private readonly funcionarioService: FuncionarioService,
+    @Inject(AuditService) private readonly auditService: AuditService,
+  ) {}
 
   @Get()
   list(@CurrentUser() user: UserPayload, @Query() pagination: PaginationDto) {
@@ -58,6 +62,13 @@ export class FuncionarioController {
   @HttpCode(HttpStatus.NO_CONTENT)
   async remove(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: UserPayload) {
     await this.funcionarioService.remove(id, user.empresaId);
+    this.auditService.log({
+      empresaId: user.empresaId,
+      userId: user.userId,
+      acao: 'DELETE',
+      entidade: 'Funcionario',
+      entidadeId: id,
+    });
   }
 
   @Get(':id/servicos')

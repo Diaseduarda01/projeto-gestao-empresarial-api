@@ -18,12 +18,16 @@ import { CreateClienteDto } from './dto/create-cliente.dto';
 import { UpdateClienteDto } from './dto/update-cliente.dto';
 import { CurrentUser, UserPayload } from '../../common/decorators/current-user.decorator';
 import { PaginationDto } from '../../common/dto/pagination.dto';
+import { AuditService } from '../../common/audit/audit.service';
 
 @ApiTags('Clientes')
 @ApiBearerAuth()
 @Controller('clientes')
 export class ClienteController {
-  constructor(@Inject(ClienteService) private readonly clienteService: ClienteService) {}
+  constructor(
+    @Inject(ClienteService) private readonly clienteService: ClienteService,
+    @Inject(AuditService) private readonly auditService: AuditService,
+  ) {}
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
@@ -54,5 +58,12 @@ export class ClienteController {
   @HttpCode(HttpStatus.NO_CONTENT)
   async remove(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: UserPayload) {
     await this.clienteService.remove(id, user.empresaId);
+    this.auditService.log({
+      empresaId: user.empresaId,
+      userId: user.userId,
+      acao: 'DELETE',
+      entidade: 'Cliente',
+      entidadeId: id,
+    });
   }
 }

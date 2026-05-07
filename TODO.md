@@ -51,14 +51,14 @@ para múltiplas empresas (estúdios de tatuagem, clínicas de estética, barbear
 
 ## 🟡 PRIORIDADE 4 — Observabilidade e operação
 
-- [ ] Implementar logs estruturados com `pino` ou `winston` (nível, timestamp, requestId, userId)
-- [ ] Criar middleware que injeta `requestId` único em cada requisição (header `X-Request-Id`)
-- [ ] Logar todas as requisições (método, rota, status, duração, userId)
-- [ ] Atualizar `/health` para verificar a conexão com o banco (`prisma.$queryRaw('SELECT 1')`)
-- [ ] Implementar `GET /health/ready` (banco ok) e `GET /health/live` (processo ok)
-- [ ] Criar tabela de auditoria (`AuditLog`) — registra quem fez o quê em qual entidade
-- [ ] Disparar evento de auditoria nas operações críticas: delete, update de status, criação de agendamento
-- [ ] Adicionar variável de ambiente `NODE_ENV` com validação e comportamento distinto em produção
+- [x] Implementar logs estruturados com `pino` ou `winston` (nível, timestamp, requestId, userId)
+- [x] Criar middleware que injeta `requestId` único em cada requisição (header `X-Request-Id`)
+- [x] Logar todas as requisições (método, rota, status, duração, userId)
+- [x] Atualizar `/health` para verificar a conexão com o banco (`prisma.$queryRaw('SELECT 1')`)
+- [x] Implementar `GET /health/ready` (banco ok) e `GET /health/live` (processo ok)
+- [x] Criar tabela de auditoria (`AuditLog`) — registra quem fez o quê em qual entidade
+- [x] Disparar evento de auditoria nas operações críticas: delete, update de status, criação de agendamento
+- [x] Adicionar variável de ambiente `NODE_ENV` com validação e comportamento distinto em produção
 
 ---
 
