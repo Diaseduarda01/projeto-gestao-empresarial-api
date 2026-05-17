@@ -20,19 +20,20 @@ enum Plano {
 }
 
 model Empresa {
-  id            String               @id @default(uuid())
-  nome          String
-  slug          String               @unique
-  plano         Plano                @default(BASICO)
-  ativo         Boolean              @default(true)
-  createdAt     DateTime             @default(now()) @map("created_at")
-  clientes      Cliente[]
-  servicos      Servico[]
-  salas         Sala[]
-  pedidos       Pedido[]
-  agendamentos  Agendamento[]
-  funcionarios  FuncionarioEmpresa[]
-  refreshTokens RefreshToken[]
+  id             String               @id @default(uuid())
+  nome           String
+  slug           String               @unique
+  plano          Plano                @default(BASICO)
+  ativo          Boolean              @default(true)
+  createdAt      DateTime             @default(now()) @map("created_at")
+  clientes       Cliente[]
+  servicos       Servico[]
+  salas          Sala[]
+  pedidos        Pedido[]
+  agendamentos   Agendamento[]
+  funcionarios   FuncionarioEmpresa[]
+  refreshTokens  RefreshToken[]
+  conviteTokens  ConviteToken[]
 
   @@map("empresas")
 }
@@ -50,31 +51,36 @@ model FuncionarioEmpresa {
 }
 
 model Cliente {
-  id        String   @id @default(uuid())
+  id        String    @id @default(uuid())
   nome      String
   telefone  String
   email     String
-  empresaId String   @map("empresa_id")
-  createdAt DateTime @default(now()) @map("created_at")
+  empresaId String    @map("empresa_id")
+  createdAt DateTime  @default(now()) @map("created_at")
+  deletedAt DateTime? @map("deleted_at")
   pedidos   Pedido[]
-  empresa   Empresa  @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  empresa   Empresa   @relation(fields: [empresaId], references: [id], onDelete: Cascade)
 
   @@unique([email, empresaId])
   @@index([nome])
+  @@index([deletedAt])
   @@map("clientes")
 }
 
 model Funcionario {
-  id                  String               @id @default(uuid())
-  nome                String
-  email               String               @unique
-  senha               String
-  createdAt           DateTime             @default(now()) @map("created_at")
-  agendamentos        Agendamento[]
-  servicos            FuncionarioServico[]
-  empresas            FuncionarioEmpresa[]
-  refreshTokens       RefreshToken[]
-  passwordResetTokens PasswordResetToken[]
+  id                      String                   @id @default(uuid())
+  nome                    String
+  email                   String                   @unique
+  senha                   String
+  superAdmin              Boolean                  @default(false) @map("super_admin")
+  emailVerificado         Boolean                  @default(true) @map("email_verificado")
+  createdAt               DateTime                 @default(now()) @map("created_at")
+  agendamentos            Agendamento[]
+  servicos                FuncionarioServico[]
+  empresas                FuncionarioEmpresa[]
+  refreshTokens           RefreshToken[]
+  passwordResetTokens     PasswordResetToken[]
+  emailVerificationTokens EmailVerificationToken[]
 
   @@map("funcionarios")
 }
@@ -87,10 +93,12 @@ model Servico {
   preco        Decimal              @db.Decimal(10, 2)
   empresaId    String               @map("empresa_id")
   updatedAt    DateTime             @updatedAt @map("updated_at")
+  deletedAt    DateTime?            @map("deleted_at")
   pedidos      PedidoServico[]
   funcionarios FuncionarioServico[]
   empresa      Empresa              @relation(fields: [empresaId], references: [id], onDelete: Cascade)
 
+  @@index([deletedAt])
   @@map("servicos")
 }
 
@@ -110,9 +118,11 @@ model Sala {
   descricao    String
   empresaId    String        @map("empresa_id")
   updatedAt    DateTime      @updatedAt @map("updated_at")
+  deletedAt    DateTime?     @map("deleted_at")
   agendamentos Agendamento[]
   empresa      Empresa       @relation(fields: [empresaId], references: [id], onDelete: Cascade)
 
+  @@index([deletedAt])
   @@map("salas")
 }
 
@@ -163,8 +173,8 @@ model Agendamento {
   salaId        String            @map("sala_id")
   empresaId     String            @map("empresa_id")
   data          DateTime          @db.Date
-  horaInicio    DateTime          @map("hora_inicio") @db.Timestamp(6)
-  horaFim       DateTime          @map("hora_fim") @db.Timestamp(6)
+  horaInicio    DateTime          @map("hora_inicio") @db.Timestamptz(6)
+  horaFim       DateTime          @map("hora_fim") @db.Timestamptz(6)
   status        AgendamentoStatus @default(AGENDADO)
   pedido        Pedido            @relation(fields: [pedidoId], references: [id])
   funcionario   Funcionario       @relation(fields: [funcionarioId], references: [id])
@@ -223,4 +233,32 @@ model AuditLog {
   @@index([empresaId, createdAt])
   @@index([entidade, entidadeId])
   @@map("audit_logs")
+}
+
+model ConviteToken {
+  id        String    @id @default(uuid())
+  token     String    @unique
+  email     String
+  nome      String?
+  empresaId String    @map("empresa_id")
+  papel     Role      @default(ATENDENTE)
+  usedAt    DateTime? @map("used_at")
+  expiresAt DateTime  @map("expires_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  empresa   Empresa   @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+
+  @@index([email])
+  @@map("convite_tokens")
+}
+
+model EmailVerificationToken {
+  id            String      @id @default(uuid())
+  token         String      @unique
+  funcionarioId String      @map("funcionario_id")
+  usedAt        DateTime?   @map("used_at")
+  expiresAt     DateTime    @map("expires_at")
+  createdAt     DateTime    @default(now()) @map("created_at")
+  funcionario   Funcionario @relation(fields: [funcionarioId], references: [id], onDelete: Cascade)
+
+  @@map("email_verification_tokens")
 }

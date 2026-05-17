@@ -14,6 +14,10 @@ export class EmpresaRepository {
     return this.prisma.empresa.findUnique({ where: { slug } });
   }
 
+  findAll() {
+    return this.prisma.empresa.findMany({ orderBy: { createdAt: 'desc' } });
+  }
+
   findByFuncionario(funcionarioId: string) {
     return this.prisma.funcionarioEmpresa.findMany({
       where: { funcionarioId },
@@ -23,6 +27,10 @@ export class EmpresaRepository {
 
   create(data: { nome: string; slug: string; plano?: Plano }) {
     return this.prisma.empresa.create({ data });
+  }
+
+  updateAtivo(id: string, ativo: boolean) {
+    return this.prisma.empresa.update({ where: { id }, data: { ativo } });
   }
 
   vincularFuncionario(funcionarioId: string, empresaId: string, papel: Role) {
@@ -43,7 +51,7 @@ export class EmpresaRepository {
     return this.prisma.funcionario.findUnique({ where: { email } });
   }
 
-  createFuncionario(data: { nome: string; email: string; senha: string }) {
+  createFuncionario(data: { nome: string; email: string; senha: string; emailVerificado?: boolean }) {
     return this.prisma.funcionario.create({ data });
   }
 
@@ -54,6 +62,51 @@ export class EmpresaRepository {
         funcionario: { select: { id: true, nome: true, email: true, createdAt: true } },
       },
       orderBy: { funcionario: { nome: 'asc' } },
+    });
+  }
+
+  createConviteToken(data: { token: string; email: string; nome?: string; empresaId: string; papel: Role; expiresAt: Date }) {
+    return this.prisma.conviteToken.create({ data });
+  }
+
+  findConviteToken(token: string) {
+    return this.prisma.conviteToken.findUnique({ where: { token }, include: { empresa: { select: { nome: true } } } });
+  }
+
+  useConviteToken(id: string) {
+    return this.prisma.conviteToken.update({ where: { id }, data: { usedAt: new Date() } });
+  }
+
+  createEmailVerificationToken(data: { token: string; funcionarioId: string; expiresAt: Date }) {
+    return this.prisma.emailVerificationToken.create({ data });
+  }
+
+  findEmailVerificationToken(token: string) {
+    return this.prisma.emailVerificationToken.findUnique({ where: { token } });
+  }
+
+  markEmailVerificado(funcionarioId: string) {
+    return this.prisma.funcionario.update({ where: { id: funcionarioId }, data: { emailVerificado: true } });
+  }
+
+  useEmailVerificationToken(id: string) {
+    return this.prisma.emailVerificationToken.update({ where: { id }, data: { usedAt: new Date() } });
+  }
+
+  async registrar(data: {
+    nome: string;
+    slug: string;
+    adminNome: string;
+    adminEmail: string;
+    adminSenha: string;
+  }) {
+    return this.prisma.$transaction(async (tx) => {
+      const empresa = await tx.empresa.create({ data: { nome: data.nome, slug: data.slug } });
+      const admin = await tx.funcionario.create({
+        data: { nome: data.adminNome, email: data.adminEmail, senha: data.adminSenha, emailVerificado: false },
+      });
+      await tx.funcionarioEmpresa.create({ data: { funcionarioId: admin.id, empresaId: empresa.id, papel: Role.ADMIN } });
+      return { empresa, admin };
     });
   }
 }

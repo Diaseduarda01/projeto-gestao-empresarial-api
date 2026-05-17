@@ -10,22 +10,23 @@ export class ClienteRepository {
   }
 
   async findAll(empresaId: string, skip: number, take: number) {
+    const where = { empresaId, deletedAt: null };
     const [data, total] = await Promise.all([
-      this.prisma.cliente.findMany({ where: { empresaId }, orderBy: { createdAt: 'desc' }, skip, take }),
-      this.prisma.cliente.count({ where: { empresaId } }),
+      this.prisma.cliente.findMany({ where, orderBy: { createdAt: 'desc' }, skip, take }),
+      this.prisma.cliente.count({ where }),
     ]);
     return { data, total };
   }
 
   findById(id: string, empresaId: string) {
-    return this.prisma.cliente.findFirst({ where: { id, empresaId } });
+    return this.prisma.cliente.findFirst({ where: { id, empresaId, deletedAt: null } });
   }
 
   update(id: string, data: Partial<{ nome: string; telefone: string; email: string }>) {
     return this.prisma.cliente.update({ where: { id }, data });
   }
 
-  delete(id: string) {
-    return this.prisma.cliente.delete({ where: { id } });
+  softDelete(id: string) {
+    return this.prisma.cliente.update({ where: { id }, data: { deletedAt: new Date() } });
   }
 }

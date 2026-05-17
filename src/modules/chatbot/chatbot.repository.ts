@@ -1,0 +1,163 @@
+import { Injectable, Inject } from '@nestjs/common';
+import { PrismaService } from '../../database/prisma.service';
+
+@Injectable()
+export class ChatbotRepository {
+  constructor(@Inject(PrismaService) private prisma: PrismaService) {}
+
+  findServico(servicoId: string, empresaId: string) {
+    return this.prisma.servico.findFirst({
+      where: { id: servicoId, empresaId, deletedAt: null },
+      select: { id: true, nome: true, duracao: true, preco: true },
+    });
+  }
+
+  findServicos(empresaId: string) {
+    return this.prisma.servico.findMany({
+      where: { empresaId, deletedAt: null },
+      select: { id: true, nome: true, duracao: true, preco: true },
+      orderBy: { nome: 'asc' },
+    });
+  }
+
+  findClienteByTelefone(telefone: string, empresaId: string) {
+    return this.prisma.cliente.findFirst({
+      where: { telefone, empresaId, deletedAt: null },
+      select: { id: true, nome: true },
+    });
+  }
+
+  async upsertCliente(params: {
+    empresaId: string;
+    nome: string;
+    telefone: string;
+    email?: string;
+  }): Promise<{ id: string; nome: string; novo: boolean }> {
+    const existente = await this.findClienteByTelefone(params.telefone, params.empresaId);
+    if (existente) return { ...existente, novo: false };
+
+    const email = params.email ?? `whatsapp_${params.telefone}@chatbot.local`;
+    const criado = await this.prisma.cliente.create({
+      data: { nome: params.nome, telefone: params.telefone, email, empresaId: params.empresaId },
+      select: { id: true, nome: true },
+    });
+    return { ...criado, novo: true };
+  }
+
+  async findFuncionariosComEspecialidade(servicoId: string, empresaId: string): Promise<string[]> {
+    const vinculos = await this.prisma.funcionarioEmpresa.findMany({
+      where: {
+        empresaId,
+        funcionario: { servicos: { some: { servicoId } } },
+      },
+      select: { funcionarioId: true },
+    });
+    return vinculos.map((v) => v.funcionarioId);
+  }
+
+  async findSalasAtivas(empresaId: string): Promise<{ id: string }[]> {
+    return this.prisma.sala.findMany({
+      where: { empresaId, deletedAt: null },
+      select: { id: true },
+    });
+  }
+
+  findAgendamentosNoDia(
+    empresaId: string,
+    funcIds: string[],
+    salaIds: string[],
+    dataStart: Date,
+    dataEnd: Date,
+  ) {
+    return this.prisma.agendamento.findMany({
+      where: {
+        empresaId,
+        status: 'AGENDADO',
+        horaInicio: { gte: dataStart, lte: dataEnd },
+        OR: [{ funcionarioId: { in: funcIds } }, { salaId: { in: salaIds } }],
+      },
+      select: { funcionarioId: true, salaId: true, horaInicio: true, horaFim: true },
+    });
+  }
+
+  findAgendamentosDoCliente(empresaId: string, clienteId: string) {
+    return this.prisma.agendamento.findMany({
+      where: {
+        empresaId,
+        pedido: { clienteId },
+        status: { not: 'CANCELADO' },
+      },
+      select: {
+        id: true,
+        data: true,
+        horaInicio: true,
+        status: true,
+        pedido: { select: { servicos: { select: { servico: { select: { nome: true } } } } } },
+      },
+      orderBy: { horaInicio: 'asc' },
+    });
+  }
+
+  async cancelarAgendamento(agendamentoId: string) {
+    const agendamento = await this.prisma.agendamento.findUnique({
+      where: { id: agendamentoId },
+    });
+    if (!agendamento) throw new Error('Agendamento não encontrado');
+    if (agendamento.status !== 'AGENDADO') throw new Error('Agendamento não pode ser cancelado');
+
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.agendamento.update({
+        where: { id: agendamentoId },
+        data: { status: 'CANCELADO' },
+        select: { id: true, status: true },
+      });
+      await tx.pedido.update({
+        where: { id: agendamento.pedidoId },
+        data: { status: 'CANCELADO' },
+      });
+      return updated;
+    }) as Promise<{ id: string; status: string }>;
+  }
+
+  async criarPedidoEAgendamento(params: {
+    clienteId: string;
+    servicoId: string;
+    funcionarioId: string;
+    salaId: string;
+    empresaId: string;
+    data: Date;
+    horaInicio: Date;
+    horaFim: Date;
+    nomeServico: string;
+  }): Promise<{ agendamentoId: string; confirmacao: string }> {
+    return this.prisma.$transaction(async (tx) => {
+      const pedido = await tx.pedido.create({
+        data: {
+          clienteId: params.clienteId,
+          empresaId: params.empresaId,
+          servicos: { create: { servicoId: params.servicoId } },
+        },
+      });
+
+      const agendamento = await tx.agendamento.create({
+        data: {
+          pedidoId: pedido.id,
+          funcionarioId: params.funcionarioId,
+          salaId: params.salaId,
+          empresaId: params.empresaId,
+          data: params.data,
+          horaInicio: params.horaInicio,
+          horaFim: params.horaFim,
+        },
+      });
+
+      await tx.pedido.update({ where: { id: pedido.id }, data: { status: 'AGENDADO' } });
+
+      const dataFmt = params.data.toISOString().substring(0, 10).split('-').reverse().join('/');
+      const horaFmt = params.horaInicio.toISOString().substring(11, 16);
+      const confirmacao = `Agendamento confirmado para ${dataFmt} às ${horaFmt} — ${params.nomeServico}. Código: ${agendamento.id.substring(0, 8).toUpperCase()}`;
+
+      return { agendamentoId: agendamento.id, confirmacao };
+    }) as Promise<{ agendamentoId: string; confirmacao: string }>;
+  }
+}

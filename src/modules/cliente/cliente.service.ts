@@ -30,6 +30,6 @@ export class ClienteService {
 
   async remove(id: string, empresaId: string) {
     await this.get(id, empresaId);
-    return this.repository.delete(id);
+    return this.repository.softDelete(id);
   }
 }

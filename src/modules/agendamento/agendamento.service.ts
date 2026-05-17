@@ -46,6 +46,8 @@ export class AgendamentoService {
     }
 
     const duracaoTotal = pedido.servicos.reduce((acc, ps) => acc + ps.servico.duracao, 0);
+    // Todos os timestamps são armazenados em UTC (TIMESTAMPTZ).
+    // A API recebe horaInicio como "HH:mm" e data como "YYYY-MM-DD" — ambas tratadas como UTC.
     const start = new Date(`${dto.data}T${dto.horaInicio}:00.000Z`);
     const end = new Date(start.getTime() + duracaoTotal * 60_000);
 
@@ -59,7 +61,14 @@ export class AgendamentoService {
       });
 
       if (conflitos.length > 0) {
-        throw new ConflictException('Conflito de horário: sala ou funcionário já ocupados neste período');
+        const conflito = conflitos[0];
+        const horaInicioStr = new Date(conflito.horaInicio).toISOString().substring(11, 16);
+        const horaFimStr = new Date(conflito.horaFim).toISOString().substring(11, 16);
+        throw new ConflictException(
+          `Conflito de horário: ${
+            conflito.salaId === dto.salaId ? 'sala' : 'funcionário'
+          } já ocupado(a) das ${horaInicioStr} às ${horaFimStr}`,
+        );
       }
 
       const ag = await this.repository.createAgendamento(tx, {

@@ -3,34 +3,64 @@ import {
   Inject,
   Injectable,
   NotFoundException,
-  ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Plano, Role } from '@prisma/client';
+import { Role } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 import { randomBytes } from 'crypto';
-import * as nodemailer from 'nodemailer';
 import { EmpresaRepository } from './empresa.repository';
 import { CreateEmpresaDto } from './dto/create-empresa.dto';
+import { RegistrarEmpresaDto } from './dto/registrar-empresa.dto';
 import { ConvidarFuncionarioDto } from './dto/convidar-funcionario.dto';
+import { NotificacaoService } from '../../common/notificacao/notificacao.service';
+
+const CONVITE_TTL_HOURS     = 48;
+const EMAIL_VERIFY_TTL_HOURS = 24;
 
 @Injectable()
 export class EmpresaService {
   constructor(
     @Inject(EmpresaRepository) private repository: EmpresaRepository,
     @Inject(ConfigService) private config: ConfigService,
+    @Inject(NotificacaoService) private notificacao: NotificacaoService,
   ) {}
+
+  async checkSlug(slug: string): Promise<{ disponivel: boolean }> {
+    const existing = await this.repository.findBySlug(slug);
+    return { disponivel: !existing };
+  }
+
+  async registrar(dto: RegistrarEmpresaDto) {
+    const existing = await this.repository.findBySlug(dto.slug);
+    if (existing) throw new ConflictException('Slug já está em uso');
+
+    const emailExistente = await this.repository.findFuncionarioByEmail(dto.adminEmail);
+    if (emailExistente) throw new ConflictException('E-mail já cadastrado');
+
+    const senhaHash = await bcrypt.hash(dto.adminSenha, 10);
+    const { empresa, admin } = await this.repository.registrar({
+      nome: dto.nome,
+      slug: dto.slug,
+      adminNome: dto.adminNome,
+      adminEmail: dto.adminEmail,
+      adminSenha: senhaHash,
+    });
+
+    const token = randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + EMAIL_VERIFY_TTL_HOURS * 60 * 60 * 1000);
+    await this.repository.createEmailVerificationToken({ token, funcionarioId: admin.id, expiresAt });
+
+    const frontendUrl = this.config.get<string>('FRONTEND_URL', 'http://localhost:3000');
+    await this.notificacao.enviarVerificacaoEmail(admin.email, admin.nome, `${frontendUrl}/verificar-email?token=${token}`);
+
+    return { empresa: { id: empresa.id, nome: empresa.nome, slug: empresa.slug } };
+  }
 
   async create(dto: CreateEmpresaDto, adminId: string) {
     const existing = await this.repository.findBySlug(dto.slug);
     if (existing) throw new ConflictException('Slug já está em uso');
 
-    const empresa = await this.repository.create({
-      nome: dto.nome,
-      slug: dto.slug,
-      plano: dto.plano as Plano | undefined,
-    });
-
+    const empresa = await this.repository.create({ nome: dto.nome, slug: dto.slug, plano: dto.plano as any });
     await this.repository.vincularFuncionario(adminId, empresa.id, Role.ADMIN);
     return empresa;
   }
@@ -49,58 +79,33 @@ export class EmpresaService {
     const empresa = await this.repository.findById(empresaId);
     if (!empresa) throw new NotFoundException('Empresa não encontrada');
 
-    let funcionario = await this.repository.findFuncionarioByEmail(dto.email);
-    let tempPassword: string | undefined;
+    const funcionarioExistente = await this.repository.findFuncionarioByEmail(dto.email);
 
-    if (!funcionario) {
-      tempPassword = randomBytes(8).toString('hex');
-      const senhaHash = await bcrypt.hash(tempPassword, 10);
-      funcionario = await this.repository.createFuncionario({
-        nome: dto.nome ?? dto.email.split('@')[0],
-        email: dto.email,
-        senha: senhaHash,
-      });
+    if (funcionarioExistente) {
+      await this.repository.vincularFuncionario(funcionarioExistente.id, empresaId, dto.papel as Role);
+      const frontendUrl = this.config.get<string>('FRONTEND_URL', 'http://localhost:3000');
+      await this.notificacao.enviarAdicionadoAEmpresa(dto.email, empresa.nome, frontendUrl);
+      return {
+        funcionario: { id: funcionarioExistente.id, nome: funcionarioExistente.nome, email: funcionarioExistente.email },
+        papel: dto.papel,
+        novo: false,
+      };
     }
 
-    await this.repository.vincularFuncionario(funcionario.id, empresaId, dto.papel as Role);
-
-    if (tempPassword) {
-      await this.sendInviteEmail(dto.email, empresa.nome, tempPassword);
-    }
-
-    return {
-      funcionario: { id: funcionario.id, nome: funcionario.nome, email: funcionario.email },
-      papel: dto.papel,
-      novo: !!tempPassword,
-    };
-  }
-
-  private async sendInviteEmail(email: string, empresaNome: string, tempPassword: string) {
-    const smtpHost = this.config.get<string>('SMTP_HOST');
-    if (!smtpHost) {
-      if (this.config.get('NODE_ENV') !== 'production') {
-        console.log(`[DEV] Convite para ${email} na empresa "${empresaNome}". Senha temporária: ${tempPassword}`);
-        return;
-      }
-      throw new ServiceUnavailableException('Serviço de email não configurado');
-    }
-
-    const transporter = nodemailer.createTransport({
-      host: smtpHost,
-      port: this.config.get<number>('SMTP_PORT', 587),
-      auth: { user: this.config.get<string>('SMTP_USER'), pass: this.config.get<string>('SMTP_PASS') },
+    const token = randomBytes(32).toString('hex');
+    const expiresAt = new Date(Date.now() + CONVITE_TTL_HOURS * 60 * 60 * 1000);
+    await this.repository.createConviteToken({
+      token,
+      email: dto.email,
+      nome: dto.nome,
+      empresaId,
+      papel: dto.papel as Role,
+      expiresAt,
     });
 
     const frontendUrl = this.config.get<string>('FRONTEND_URL', 'http://localhost:3000');
+    await this.notificacao.enviarConvite(dto.email, dto.nome ?? dto.email.split('@')[0], empresa.nome, `${frontendUrl}/aceitar-convite?token=${token}`);
 
-    await transporter.sendMail({
-      from: this.config.get<string>('SMTP_FROM', 'noreply@erpdias.com'),
-      to: email,
-      subject: `Convite para ${empresaNome} — ERP Dias`,
-      html: `<p>Você foi convidado para a empresa <b>${empresaNome}</b>.</p>
-             <p>Acesse <a href="${frontendUrl}">${frontendUrl}</a> e faça login com:</p>
-             <p>Email: ${email}<br>Senha temporária: ${tempPassword}</p>
-             <p>Altere sua senha após o primeiro acesso.</p>`,
-    });
+    return { email: dto.email, papel: dto.papel, novo: true };
   }
 }

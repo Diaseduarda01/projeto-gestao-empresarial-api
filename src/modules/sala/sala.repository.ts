@@ -8,11 +8,14 @@ export class SalaRepository {
   constructor(@Inject(PrismaService) private prisma: PrismaService) {}
 
   findAll(empresaId: string) {
-    return this.prisma.sala.findMany({ where: { empresaId }, orderBy: { nome: 'asc' } });
+    return this.prisma.sala.findMany({
+      where: { empresaId, deletedAt: null },
+      orderBy: { nome: 'asc' },
+    });
   }
 
   findById(id: string, empresaId: string) {
-    return this.prisma.sala.findFirst({ where: { id, empresaId } });
+    return this.prisma.sala.findFirst({ where: { id, empresaId, deletedAt: null } });
   }
 
   create(data: CreateSalaDto, empresaId: string) {
@@ -23,8 +26,8 @@ export class SalaRepository {
     return this.prisma.sala.update({ where: { id }, data });
   }
 
-  delete(id: string) {
-    return this.prisma.sala.delete({ where: { id } });
+  softDelete(id: string) {
+    return this.prisma.sala.update({ where: { id }, data: { deletedAt: new Date() } });
   }
 
   findAgendamentoFuturo(salaId: string, empresaId: string) {

@@ -14,12 +14,15 @@ import { FuncionarioModule } from './modules/funcionario/funcionario.module';
 import { PedidoModule } from './modules/pedido/pedido.module';
 import { AgendamentoModule } from './modules/agendamento/agendamento.module';
 import { EmpresaModule } from './modules/empresa/empresa.module';
+import { PlatformAdminModule } from './modules/platform-admin/platform-admin.module';
+import { ChatbotModule } from './modules/chatbot/chatbot.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 import { HealthController } from './common/health/health.controller';
 import { ETagInterceptor } from './common/interceptors/etag.interceptor';
 import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
 import { AuditModule } from './common/audit/audit.module';
+import { NotificacaoModule } from './common/notificacao/notificacao.module';
 import { envSchema } from './config/env.schema';
 
 @Module({
@@ -70,6 +73,7 @@ import { envSchema } from './config/env.schema';
     ThrottlerModule.forRoot([{ name: 'default', ttl: 60000, limit: 100 }]),
     PrismaModule,
     AuditModule,
+    NotificacaoModule,
     AuthModule,
     ClienteModule,
     ServicoModule,
@@ -78,6 +82,8 @@ import { envSchema } from './config/env.schema';
     PedidoModule,
     AgendamentoModule,
     EmpresaModule,
+    PlatformAdminModule,
+    ChatbotModule,
   ],
   controllers: [HealthController],
   providers: [

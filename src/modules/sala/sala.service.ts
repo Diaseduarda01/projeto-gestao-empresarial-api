@@ -51,7 +51,7 @@ export class SalaService {
     await this.get(id, empresaId);
     const agFuturo = await this.repository.findAgendamentoFuturo(id, empresaId);
     if (agFuturo) throw new ConflictException('Sala possui agendamentos futuros e não pode ser removida');
-    await this.repository.delete(id);
+    await this.repository.softDelete(id);
     await this.cacheManager.del(this.cacheKey(empresaId));
   }
 }

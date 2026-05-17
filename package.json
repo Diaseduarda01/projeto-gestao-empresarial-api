@@ -4,7 +4,7 @@
   "main": "dist/main.js",
   "scripts": {
     "dev": "nodemon",
-    "build": "tsc",
+    "build": "tsc -p tsconfig.build.json",
     "start": "node dist/main.js",
     "start:prod": "pm2 start ecosystem.config.js",
     "start:prod:single": "NODE_ENV=production node dist/main.js",
@@ -28,6 +28,7 @@
     "@nestjs/swagger": "^11.4.2",
     "@nestjs/throttler": "^6.5.0",
     "@prisma/client": "^5.22.0",
+    "amqplib": "^2.0.1",
     "bcryptjs": "^2.4.3",
     "cache-manager": "^7.2.8",
     "compression": "^1.8.1",
@@ -51,6 +52,7 @@
     "zod": "^3.23.8"
   },
   "devDependencies": {
+    "@types/amqplib": "^0.10.8",
     "@types/bcryptjs": "^2.4.6",
     "@types/compression": "^1.8.1",
     "@types/cors": "^2.8.17",

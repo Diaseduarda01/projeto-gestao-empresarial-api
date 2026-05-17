@@ -1,4 +1,4 @@
-import { ConflictException, Inject, Injectable, NotFoundException } from '@nestjs/common';
+import { Inject, Injectable, NotFoundException } from '@nestjs/common';
 import { CACHE_MANAGER, Cache } from '@nestjs/cache-manager';
 import { Servico } from '@prisma/client';
 import { ServicoRepository } from './servico.repository';
@@ -49,9 +49,7 @@ export class ServicoService {
 
   async remove(id: string, empresaId: string) {
     await this.get(id, empresaId);
-    const emUso = await this.repository.findPedidoServico(id, empresaId);
-    if (emUso) throw new ConflictException('Serviço está vinculado a pedidos e não pode ser removido');
-    await this.repository.delete(id);
+    await this.repository.softDelete(id);
     await this.cacheManager.del(this.cacheKey(empresaId));
   }
 }

@@ -18,21 +18,35 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
   }
 
-  async validate(payload: { sub: string; jti: string; exp: number; empresaId: string }): Promise<UserPayload> {
-    if (!payload.jti || !payload.empresaId) throw new UnauthorizedException('Token inválido');
+  async validate(payload: {
+    sub: string;
+    jti: string;
+    exp: number;
+    empresaId?: string;
+    superAdmin?: boolean;
+  }): Promise<UserPayload> {
+    if (!payload.jti) throw new UnauthorizedException('Token inválido');
 
-    const blacklisted = await this.prisma.blacklistedToken.findUnique({
-      where: { jti: payload.jti },
-    });
+    const blacklisted = await this.prisma.blacklistedToken.findUnique({ where: { jti: payload.jti } });
     if (blacklisted) throw new UnauthorizedException('Token revogado');
 
+    if (payload.superAdmin) {
+      const func = await this.prisma.funcionario.findUnique({ where: { id: payload.sub } });
+      if (!func?.superAdmin) throw new UnauthorizedException('Acesso não autorizado');
+      return {
+        userId: payload.sub,
+        empresaId: '',
+        papel: 'ADMIN' as any,
+        jti: payload.jti,
+        exp: payload.exp,
+        superAdmin: true,
+      };
+    }
+
+    if (!payload.empresaId) throw new UnauthorizedException('Token inválido');
+
     const vinculo = await this.prisma.funcionarioEmpresa.findUnique({
-      where: {
-        funcionarioId_empresaId: {
-          funcionarioId: payload.sub,
-          empresaId: payload.empresaId,
-        },
-      },
+      where: { funcionarioId_empresaId: { funcionarioId: payload.sub, empresaId: payload.empresaId } },
       include: { empresa: { select: { ativo: true } } },
     });
 

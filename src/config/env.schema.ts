@@ -14,6 +14,8 @@ export const envSchema = z.object({
   SMTP_PASS: z.string().optional(),
   SMTP_FROM: z.string().default('noreply@erpdias.com'),
   DB_CONNECTION_LIMIT: z.coerce.number().int().min(1).default(10),
+  RABBITMQ_URL: z.string().default('amqp://guest:guest@localhost:5672'),
+  INTERNAL_API_KEY: z.string().min(16).optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;

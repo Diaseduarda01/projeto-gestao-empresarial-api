@@ -7,6 +7,7 @@ export interface UserPayload {
   papel: Role;
   jti: string;
   exp: number;
+  superAdmin?: boolean;
 }
 
 export const CurrentUser = createParamDecorator(
