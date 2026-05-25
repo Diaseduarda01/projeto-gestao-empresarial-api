@@ -13,6 +13,7 @@ import { PrismaService } from '../../database/prisma.service';
 import { EmpresaRepository } from '../empresa/empresa.repository';
 import { NotificacaoService } from '../../common/notificacao/notificacao.service';
 import { LoginDto } from './dto/login.dto';
+import { GoogleProfilePayload } from './strategies/google.strategy';
 
 const REFRESH_TOKEN_TTL_DAYS = 7;
 
@@ -30,11 +31,72 @@ export class AuthService {
     const funcionario = await this.prisma.funcionario.findUnique({ where: { email } });
     if (!funcionario) throw new UnauthorizedException('Credenciais inválidas');
 
+    if (!funcionario.senha) {
+      throw new UnauthorizedException('Esta conta usa login com Google. Entre clicando em "Continuar com Google".');
+    }
+
     const senhaValida = await bcrypt.compare(senha, funcionario.senha);
     if (!senhaValida) throw new UnauthorizedException('Credenciais inválidas');
 
     if (!funcionario.emailVerificado) {
       throw new UnauthorizedException('E-mail não verificado. Verifique sua caixa de entrada e clique no link de confirmação.');
+    }
+
+    if (funcionario.superAdmin) {
+      const jti = randomUUID();
+      const accessToken = this.jwtService.sign(
+        { jti, superAdmin: true, empresaId: '' },
+        { subject: funcionario.id, expiresIn: '8h' },
+      );
+      return {
+        accessToken,
+        refreshToken: null,
+        funcionario: { id: funcionario.id, nome: funcionario.nome, email: funcionario.email },
+        superAdmin: true,
+      };
+    }
+
+    const empresas = await this.prisma.funcionarioEmpresa.findMany({
+      where: { funcionarioId: funcionario.id },
+      include: { empresa: { select: { id: true, nome: true, slug: true, ativo: true } } },
+    });
+
+    const empresasAtivas = empresas.filter((e) => e.empresa.ativo);
+    if (!empresasAtivas.length) {
+      throw new UnauthorizedException('Funcionário não está vinculado a nenhuma empresa ativa');
+    }
+
+    const empresaAtual = empresasAtivas[0];
+    const jti = randomUUID();
+    const accessToken = this.jwtService.sign(
+      { jti, empresaId: empresaAtual.empresaId, papel: empresaAtual.papel },
+      { subject: funcionario.id },
+    );
+    const refreshToken = await this.createRefreshToken(funcionario.id, empresaAtual.empresaId);
+
+    return {
+      accessToken,
+      refreshToken,
+      funcionario: { id: funcionario.id, nome: funcionario.nome, email: funcionario.email },
+      empresaAtual: { id: empresaAtual.empresa.id, nome: empresaAtual.empresa.nome, papel: empresaAtual.papel },
+      empresas: empresasAtivas.map((e) => ({ id: e.empresa.id, nome: e.empresa.nome, papel: e.papel })),
+    };
+  }
+
+  async loginComGoogle({ googleId, email, nome }: GoogleProfilePayload) {
+    let funcionario = await this.prisma.funcionario.findUnique({ where: { googleId } });
+
+    if (!funcionario) {
+      funcionario = await this.prisma.funcionario.findUnique({ where: { email } });
+      if (!funcionario) {
+        throw new UnauthorizedException(
+          'Nenhuma conta vinculada a este Google. Solicite um convite ao administrador da empresa.',
+        );
+      }
+      funcionario = await this.prisma.funcionario.update({
+        where: { id: funcionario.id },
+        data: { googleId, emailVerificado: true, nome: funcionario.nome || nome },
+      });
     }
 
     if (funcionario.superAdmin) {

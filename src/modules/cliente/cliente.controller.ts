@@ -40,9 +40,19 @@ export class ClienteController {
     return this.clienteService.list(user.empresaId, pagination.page, pagination.limit);
   }
 
+  @Get('aniversariantes')
+  aniversariantes(@CurrentUser() user: UserPayload, @Query('mes') mes: string | undefined) {
+    return this.clienteService.aniversariantes(user.empresaId, mes);
+  }
+
   @Get(':id')
   get(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: UserPayload) {
     return this.clienteService.get(id, user.empresaId);
+  }
+
+  @Get(':id/historico')
+  historico(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: UserPayload) {
+    return this.clienteService.historico(id, user.empresaId);
   }
 
   @Put(':id')

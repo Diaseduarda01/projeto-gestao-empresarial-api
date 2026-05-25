@@ -109,4 +109,50 @@ export class EmpresaRepository {
       return { empresa, admin };
     });
   }
+
+  // HorarioFuncionamento
+
+  listHorarioFuncionamento(empresaId: string) {
+    return this.prisma.horarioFuncionamento.findMany({
+      where: { empresaId },
+      orderBy: { diaSemana: 'asc' },
+    });
+  }
+
+  upsertHorarioFuncionamento(
+    empresaId: string,
+    diaSemana: number,
+    data: { horaAbertura: string; horaFechamento: string; ativo: boolean },
+  ) {
+    return this.prisma.horarioFuncionamento.upsert({
+      where: { empresaId_diaSemana: { empresaId, diaSemana } },
+      update: data,
+      create: { empresaId, diaSemana, ...data },
+    });
+  }
+
+  removeHorarioFuncionamento(empresaId: string, diaSemana: number) {
+    return this.prisma.horarioFuncionamento.deleteMany({ where: { empresaId, diaSemana } });
+  }
+
+  // PoliticaCancelamento
+
+  findPoliticaCancelamento(empresaId: string) {
+    return this.prisma.politicaCancelamento.findUnique({ where: { empresaId } });
+  }
+
+  upsertPoliticaCancelamento(
+    empresaId: string,
+    data: { prazoMinimoHoras: number; multaPercentual?: number },
+  ) {
+    return this.prisma.politicaCancelamento.upsert({
+      where: { empresaId },
+      update: data,
+      create: { empresaId, ...data },
+    });
+  }
+
+  removePoliticaCancelamento(empresaId: string) {
+    return this.prisma.politicaCancelamento.deleteMany({ where: { empresaId } });
+  }
 }

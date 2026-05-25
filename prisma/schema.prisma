@@ -14,26 +14,71 @@ enum Role {
 }
 
 enum Plano {
-  BASICO
-  PROFISSIONAL
-  ENTERPRISE
+  BASIC
+  BRONZE
+  PLATINUM
+  GOLD
+}
+
+enum PedidoStatus {
+  ABERTO
+  AGENDADO
+  CONCLUIDO
+  CANCELADO
+}
+
+enum AgendamentoStatus {
+  AGENDADO
+  CONCLUIDO
+  CANCELADO
+}
+
+enum FormaPagamento {
+  DINHEIRO
+  CARTAO_CREDITO
+  CARTAO_DEBITO
+  PIX
+  CREDITO_LOJA
+  ABACATE_PAY
+}
+
+enum PagamentoStatus {
+  PENDENTE
+  CONFIRMADO
+  CANCELADO
+  EXPIRADO
+}
+
+enum MovimentoTipo {
+  ENTRADA
+  SAIDA
+  AJUSTE
 }
 
 model Empresa {
-  id             String               @id @default(uuid())
-  nome           String
-  slug           String               @unique
-  plano          Plano                @default(BASICO)
-  ativo          Boolean              @default(true)
-  createdAt      DateTime             @default(now()) @map("created_at")
-  clientes       Cliente[]
-  servicos       Servico[]
-  salas          Sala[]
-  pedidos        Pedido[]
-  agendamentos   Agendamento[]
-  funcionarios   FuncionarioEmpresa[]
-  refreshTokens  RefreshToken[]
-  conviteTokens  ConviteToken[]
+  id                   String                @id @default(uuid())
+  nome                 String
+  slug                 String                @unique
+  plano                Plano                 @default(BASIC)
+  ativo                Boolean               @default(true)
+  createdAt            DateTime              @default(now()) @map("created_at")
+  clientes             Cliente[]
+  servicos             Servico[]
+  salas                Sala[]
+  pedidos              Pedido[]
+  agendamentos         Agendamento[]
+  funcionarios         FuncionarioEmpresa[]
+  refreshTokens        RefreshToken[]
+  conviteTokens        ConviteToken[]
+  horarioFuncionamento HorarioFuncionamento[]
+  horariosTrabalho     HorarioTrabalho[]
+  bloqueios            BloqueioAgenda[]
+  politicaCancelamento PoliticaCancelamento?
+  listaEspera          ListaEspera[]
+  pagamentos           Pagamento[]
+  produtos             Produto[]
+  movimentosEstoque    MovimentoEstoque[]
+  comissoes            ComissaoFuncionario[]
 
   @@map("empresas")
 }
@@ -51,19 +96,26 @@ model FuncionarioEmpresa {
 }
 
 model Cliente {
-  id        String    @id @default(uuid())
-  nome      String
-  telefone  String
-  email     String
-  empresaId String    @map("empresa_id")
-  createdAt DateTime  @default(now()) @map("created_at")
-  deletedAt DateTime? @map("deleted_at")
-  pedidos   Pedido[]
-  empresa   Empresa   @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  id             String        @id @default(uuid())
+  nome           String
+  telefone       String
+  email          String
+  empresaId      String        @map("empresa_id")
+  createdAt      DateTime      @default(now()) @map("created_at")
+  deletedAt      DateTime?     @map("deleted_at")
+  dataNascimento DateTime?     @map("data_nascimento") @db.Date
+  cpf            String?       @db.VarChar(14)
+  observacoes    String?
+  alergias       String?
+  pedidos        Pedido[]
+  listaEspera    ListaEspera[]
+  pagamentos     Pagamento[]
+  empresa        Empresa       @relation(fields: [empresaId], references: [id], onDelete: Cascade)
 
   @@unique([email, empresaId])
   @@index([nome])
   @@index([deletedAt])
+  @@index([dataNascimento])
   @@map("clientes")
 }
 
@@ -71,7 +123,8 @@ model Funcionario {
   id                      String                   @id @default(uuid())
   nome                    String
   email                   String                   @unique
-  senha                   String
+  senha                   String?
+  googleId                String?                  @unique @map("google_id")
   superAdmin              Boolean                  @default(false) @map("super_admin")
   emailVerificado         Boolean                  @default(true) @map("email_verificado")
   createdAt               DateTime                 @default(now()) @map("created_at")
@@ -81,6 +134,11 @@ model Funcionario {
   refreshTokens           RefreshToken[]
   passwordResetTokens     PasswordResetToken[]
   emailVerificationTokens EmailVerificationToken[]
+  horariosTrabalho        HorarioTrabalho[]
+  bloqueios               BloqueioAgenda[]
+  listaEspera             ListaEspera[]
+  comissoes               ComissaoFuncionario[]
+  movimentosEstoque       MovimentoEstoque[]
 
   @@map("funcionarios")
 }
@@ -96,6 +154,9 @@ model Servico {
   deletedAt    DateTime?            @map("deleted_at")
   pedidos      PedidoServico[]
   funcionarios FuncionarioServico[]
+  listaEspera  ListaEspera[]
+  produtos     ServicoProduto[]
+  comissoes    ComissaoFuncionario[]
   empresa      Empresa              @relation(fields: [empresaId], references: [id], onDelete: Cascade)
 
   @@index([deletedAt])
@@ -126,13 +187,6 @@ model Sala {
   @@map("salas")
 }
 
-enum PedidoStatus {
-  ABERTO
-  AGENDADO
-  CONCLUIDO
-  CANCELADO
-}
-
 model Pedido {
   id          String          @id @default(uuid())
   clienteId   String          @map("cliente_id")
@@ -160,31 +214,117 @@ model PedidoServico {
   @@map("pedido_servicos")
 }
 
-enum AgendamentoStatus {
-  AGENDADO
-  CONCLUIDO
-  CANCELADO
-}
-
 model Agendamento {
-  id            String            @id @default(uuid())
-  pedidoId      String            @unique @map("pedido_id")
-  funcionarioId String            @map("funcionario_id")
-  salaId        String            @map("sala_id")
-  empresaId     String            @map("empresa_id")
-  data          DateTime          @db.Date
-  horaInicio    DateTime          @map("hora_inicio") @db.Timestamptz(6)
-  horaFim       DateTime          @map("hora_fim") @db.Timestamptz(6)
-  status        AgendamentoStatus @default(AGENDADO)
-  pedido        Pedido            @relation(fields: [pedidoId], references: [id])
-  funcionario   Funcionario       @relation(fields: [funcionarioId], references: [id])
-  sala          Sala              @relation(fields: [salaId], references: [id])
-  empresa       Empresa           @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  id                String               @id @default(uuid())
+  pedidoId          String               @unique @map("pedido_id")
+  funcionarioId     String               @map("funcionario_id")
+  salaId            String               @map("sala_id")
+  empresaId         String               @map("empresa_id")
+  data              DateTime             @db.Date
+  horaInicio        DateTime             @map("hora_inicio") @db.Timestamptz(6)
+  horaFim           DateTime             @map("hora_fim") @db.Timestamptz(6)
+  status            AgendamentoStatus    @default(AGENDADO)
+  cancelToken       String?              @unique @map("cancel_token")
+  pedido            Pedido               @relation(fields: [pedidoId], references: [id])
+  funcionario       Funcionario          @relation(fields: [funcionarioId], references: [id])
+  sala              Sala                 @relation(fields: [salaId], references: [id])
+  empresa           Empresa              @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  historico         AgendamentoHistorico[]
+  pagamento         Pagamento?
+  movimentosEstoque MovimentoEstoque[]
 
   @@index([funcionarioId, horaInicio])
   @@index([salaId, horaInicio])
   @@index([data])
   @@map("agendamentos")
+}
+
+model AgendamentoHistorico {
+  id                  String      @id @default(uuid())
+  agendamentoId       String      @map("agendamento_id")
+  funcionarioId       String      @map("funcionario_id")
+  salaId              String      @map("sala_id")
+  data                DateTime    @db.Date
+  horaInicio          DateTime    @map("hora_inicio") @db.Timestamptz(6)
+  horaFim             DateTime    @map("hora_fim") @db.Timestamptz(6)
+  motivoReagendamento String?     @map("motivo_reagendamento")
+  reagendadoPorId     String?     @map("reagendado_por_id")
+  criadoAt            DateTime    @default(now()) @map("criado_at")
+  agendamento         Agendamento @relation(fields: [agendamentoId], references: [id], onDelete: Cascade)
+
+  @@index([agendamentoId])
+  @@map("agendamentos_historico")
+}
+
+model HorarioFuncionamento {
+  empresaId      String  @map("empresa_id")
+  diaSemana      Int     @map("dia_semana")
+  horaAbertura   String  @map("hora_abertura")
+  horaFechamento String  @map("hora_fechamento")
+  ativo          Boolean @default(true)
+  empresa        Empresa @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+
+  @@id([empresaId, diaSemana])
+  @@map("horarios_funcionamento")
+}
+
+model HorarioTrabalho {
+  id            String      @id @default(uuid())
+  funcionarioId String      @map("funcionario_id")
+  empresaId     String      @map("empresa_id")
+  diaSemana     Int         @map("dia_semana")
+  horaInicio    String      @map("hora_inicio")
+  horaFim       String      @map("hora_fim")
+  funcionario   Funcionario @relation(fields: [funcionarioId], references: [id], onDelete: Cascade)
+  empresa       Empresa     @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+
+  @@unique([funcionarioId, empresaId, diaSemana])
+  @@map("horarios_trabalho")
+}
+
+model BloqueioAgenda {
+  id            String      @id @default(uuid())
+  funcionarioId String      @map("funcionario_id")
+  empresaId     String      @map("empresa_id")
+  data          DateTime    @db.Date
+  horaInicio    String?     @map("hora_inicio")
+  horaFim       String?     @map("hora_fim")
+  motivo        String?
+  createdAt     DateTime    @default(now()) @map("created_at")
+  funcionario   Funcionario @relation(fields: [funcionarioId], references: [id], onDelete: Cascade)
+  empresa       Empresa     @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+
+  @@index([funcionarioId, data])
+  @@map("bloqueios_agenda")
+}
+
+model PoliticaCancelamento {
+  id               String   @id @default(uuid())
+  empresaId        String   @unique @map("empresa_id")
+  prazoMinimoHoras Int      @map("prazo_minimo_horas")
+  multaPercentual  Decimal? @map("multa_percentual") @db.Decimal(5, 2)
+  empresa          Empresa  @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+
+  @@map("politicas_cancelamento")
+}
+
+model ListaEspera {
+  id            String       @id @default(uuid())
+  clienteId     String       @map("cliente_id")
+  empresaId     String       @map("empresa_id")
+  servicoId     String       @map("servico_id")
+  funcionarioId String?      @map("funcionario_id")
+  dataDesejada  DateTime     @map("data_desejada") @db.Date
+  atendida      Boolean      @default(false)
+  createdAt     DateTime     @default(now()) @map("created_at")
+  cliente       Cliente      @relation(fields: [clienteId], references: [id])
+  empresa       Empresa      @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  servico       Servico      @relation(fields: [servicoId], references: [id])
+  funcionario   Funcionario? @relation(fields: [funcionarioId], references: [id])
+
+  @@index([empresaId, dataDesejada])
+  @@index([atendida])
+  @@map("lista_espera")
 }
 
 model RefreshToken {
@@ -261,4 +401,102 @@ model EmailVerificationToken {
   funcionario   Funcionario @relation(fields: [funcionarioId], references: [id], onDelete: Cascade)
 
   @@map("email_verification_tokens")
+}
+
+// ─── Financeiro ──────────────────────────────────────────────────────────────
+
+model Pagamento {
+  id             String          @id @default(uuid())
+  empresaId      String          @map("empresa_id")
+  agendamentoId  String?         @unique @map("agendamento_id")
+  clienteId      String          @map("cliente_id")
+  valor          Decimal         @db.Decimal(10, 2)
+  desconto       Decimal?        @db.Decimal(10, 2)
+  formaPagamento FormaPagamento  @map("forma_pagamento")
+  status         PagamentoStatus @default(PENDENTE)
+  pagoEm         DateTime?       @map("pago_em")
+  observacoes    String?
+  criadoEm       DateTime        @default(now()) @map("criado_em")
+  atualizadoEm   DateTime        @updatedAt @map("atualizado_em")
+  empresa        Empresa         @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  agendamento    Agendamento?    @relation(fields: [agendamentoId], references: [id])
+  cliente        Cliente         @relation(fields: [clienteId], references: [id])
+
+  @@index([empresaId, criadoEm])
+  @@index([status])
+  @@map("pagamentos")
+}
+
+// ─── Estoque ─────────────────────────────────────────────────────────────────
+
+model Produto {
+  id                  String             @id @default(uuid())
+  empresaId           String             @map("empresa_id")
+  nome                String
+  descricao           String?
+  unidade             String             @default("un")
+  estoqueAtual        Decimal            @default(0) @map("estoque_atual") @db.Decimal(10, 3)
+  estoqueMinimoAlerta Decimal            @default(0) @map("estoque_minimo_alerta") @db.Decimal(10, 3)
+  preco               Decimal?           @db.Decimal(10, 2)
+  ativo               Boolean            @default(true)
+  criadoEm            DateTime           @default(now()) @map("criado_em")
+  atualizadoEm        DateTime           @updatedAt @map("atualizado_em")
+  deletedAt           DateTime?          @map("deleted_at")
+  empresa             Empresa            @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  servicos            ServicoProduto[]
+  movimentos          MovimentoEstoque[]
+
+  @@index([empresaId])
+  @@index([deletedAt])
+  @@map("produtos")
+}
+
+model ServicoProduto {
+  servicoId  String  @map("servico_id")
+  produtoId  String  @map("produto_id")
+  quantidade Decimal @db.Decimal(10, 3)
+  servico    Servico @relation(fields: [servicoId], references: [id], onDelete: Cascade)
+  produto    Produto @relation(fields: [produtoId], references: [id], onDelete: Cascade)
+
+  @@id([servicoId, produtoId])
+  @@map("servico_produtos")
+}
+
+model MovimentoEstoque {
+  id            String        @id @default(uuid())
+  produtoId     String        @map("produto_id")
+  empresaId     String        @map("empresa_id")
+  tipo          MovimentoTipo
+  quantidade    Decimal       @db.Decimal(10, 3)
+  referencia    String?
+  agendamentoId String?       @map("agendamento_id")
+  funcionarioId String?       @map("funcionario_id")
+  criadoEm      DateTime      @default(now()) @map("criado_em")
+  produto       Produto       @relation(fields: [produtoId], references: [id])
+  empresa       Empresa       @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  agendamento   Agendamento?  @relation(fields: [agendamentoId], references: [id])
+  funcionario   Funcionario?  @relation(fields: [funcionarioId], references: [id])
+
+  @@index([produtoId, criadoEm])
+  @@index([agendamentoId])
+  @@map("movimentos_estoque")
+}
+
+// ─── Comissões ────────────────────────────────────────────────────────────────
+
+model ComissaoFuncionario {
+  id            String      @id @default(uuid())
+  funcionarioId String      @map("funcionario_id")
+  empresaId     String      @map("empresa_id")
+  servicoId     String?     @map("servico_id")
+  percentual    Decimal     @db.Decimal(5, 2)
+  criadoEm      DateTime    @default(now()) @map("criado_em")
+  atualizadoEm  DateTime    @updatedAt @map("atualizado_em")
+  funcionario   Funcionario @relation(fields: [funcionarioId], references: [id], onDelete: Cascade)
+  empresa       Empresa     @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  servico       Servico?    @relation(fields: [servicoId], references: [id])
+
+  @@unique([funcionarioId, empresaId, servicoId])
+  @@index([empresaId, funcionarioId])
+  @@map("comissoes_funcionarios")
 }

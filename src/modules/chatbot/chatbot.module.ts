@@ -6,5 +6,6 @@ import { ChatbotRepository } from './chatbot.repository';
 @Module({
   controllers: [ChatbotController],
   providers: [ChatbotService, ChatbotRepository],
+  exports: [ChatbotService],
 })
 export class ChatbotModule {}

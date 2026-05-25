@@ -1,13 +1,16 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   HttpCode,
   HttpStatus,
   Inject,
   Param,
+  ParseIntPipe,
   ParseUUIDPipe,
   Post,
+  Put,
   Query,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
@@ -16,6 +19,8 @@ import { EmpresaService } from './empresa.service';
 import { CreateEmpresaDto } from './dto/create-empresa.dto';
 import { RegistrarEmpresaDto } from './dto/registrar-empresa.dto';
 import { ConvidarFuncionarioDto } from './dto/convidar-funcionario.dto';
+import { UpsertHorarioFuncionamentoDto } from './dto/horario-funcionamento.dto';
+import { UpsertPoliticaCancelamentoDto } from './dto/politica-cancelamento.dto';
 import { CurrentUser, UserPayload } from '../../common/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { Public } from '../../common/decorators/public.decorator';
@@ -80,5 +85,57 @@ export class EmpresaController {
     @Body() dto: ConvidarFuncionarioDto,
   ) {
     return this.empresaService.convidarFuncionario(id, dto);
+  }
+
+  // Horário de Funcionamento
+
+  @ApiBearerAuth()
+  @Get('minha/horario-funcionamento')
+  listHorarioFuncionamento(@CurrentUser() user: UserPayload) {
+    return this.empresaService.listHorarioFuncionamento(user.empresaId);
+  }
+
+  @ApiBearerAuth()
+  @Put('minha/horario-funcionamento/:diaSemana')
+  upsertHorarioFuncionamento(
+    @Param('diaSemana', ParseIntPipe) diaSemana: number,
+    @CurrentUser() user: UserPayload,
+    @Body() dto: UpsertHorarioFuncionamentoDto,
+  ) {
+    return this.empresaService.upsertHorarioFuncionamento(user.empresaId, diaSemana, dto);
+  }
+
+  @ApiBearerAuth()
+  @Delete('minha/horario-funcionamento/:diaSemana')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async removeHorarioFuncionamento(
+    @Param('diaSemana', ParseIntPipe) diaSemana: number,
+    @CurrentUser() user: UserPayload,
+  ) {
+    await this.empresaService.removeHorarioFuncionamento(user.empresaId, diaSemana);
+  }
+
+  // Política de Cancelamento
+
+  @ApiBearerAuth()
+  @Get('minha/politica-cancelamento')
+  getPoliticaCancelamento(@CurrentUser() user: UserPayload) {
+    return this.empresaService.getPoliticaCancelamento(user.empresaId);
+  }
+
+  @ApiBearerAuth()
+  @Put('minha/politica-cancelamento')
+  upsertPoliticaCancelamento(
+    @CurrentUser() user: UserPayload,
+    @Body() dto: UpsertPoliticaCancelamentoDto,
+  ) {
+    return this.empresaService.upsertPoliticaCancelamento(user.empresaId, dto);
+  }
+
+  @ApiBearerAuth()
+  @Delete('minha/politica-cancelamento')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  async removePoliticaCancelamento(@CurrentUser() user: UserPayload) {
+    await this.empresaService.removePoliticaCancelamento(user.empresaId);
   }
 }

@@ -5,7 +5,7 @@ export class ChatbotClienteDto extends createZodDto(
   z.object({
     empresaId: z.string().uuid(),
     nome: z.string().min(2),
-    telefone: z.string().min(10).max(20),
+    telefone: z.string().min(10).max(20).optional(),
     email: z.string().email().optional(),
   }),
 ) {}

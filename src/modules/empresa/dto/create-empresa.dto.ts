@@ -8,7 +8,7 @@ const createEmpresaSchema = z.object({
     .min(2)
     .max(60)
     .regex(/^[a-z0-9-]+$/, 'slug deve conter apenas letras minúsculas, números e hífens'),
-  plano: z.enum(['BASICO', 'PROFISSIONAL', 'ENTERPRISE']).optional(),
+  plano: z.enum(['BASIC', 'BRONZE', 'PLATINUM', 'GOLD']).optional(),
 });
 
 export class CreateEmpresaDto extends createZodDto(createEmpresaSchema) {}

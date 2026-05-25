@@ -14,6 +14,8 @@ import {
 import { ApiBearerAuth, ApiTags } from '@nestjs/swagger';
 import { AgendamentoService } from './agendamento.service';
 import { CreateAgendamentoDto } from './dto/create-agendamento.dto';
+import { ReagendarAgendamentoDto } from './dto/reagendar-agendamento.dto';
+import { ConcluirAgendamentoDto } from './dto/concluir-agendamento.dto';
 import { CurrentUser, UserPayload } from '../../common/decorators/current-user.decorator';
 import { PaginationDto } from '../../common/dto/pagination.dto';
 import { AuditService } from '../../common/audit/audit.service';
@@ -71,14 +73,37 @@ export class AgendamentoController {
 
   @Patch(':id/concluir')
   @HttpCode(HttpStatus.OK)
-  async conclude(@Param('id', ParseUUIDPipe) id: string, @CurrentUser() user: UserPayload) {
-    const result = await this.agendamentoService.conclude(id, user.empresaId);
+  async conclude(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: UserPayload,
+    @Body() dto: ConcluirAgendamentoDto,
+  ) {
+    const result = await this.agendamentoService.conclude(id, user.empresaId, dto);
     this.auditService.log({
       empresaId: user.empresaId,
       userId: user.userId,
       acao: 'CONCLUIR',
       entidade: 'Agendamento',
       entidadeId: id,
+    });
+    return result;
+  }
+
+  @Patch(':id/reagendar')
+  @HttpCode(HttpStatus.OK)
+  async reagendar(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: UserPayload,
+    @Body() dto: ReagendarAgendamentoDto,
+  ) {
+    const result = await this.agendamentoService.reagendar(id, user.empresaId, dto, user.userId);
+    this.auditService.log({
+      empresaId: user.empresaId,
+      userId: user.userId,
+      acao: 'REAGENDAR',
+      entidade: 'Agendamento',
+      entidadeId: id,
+      detalhes: { data: dto.data, horaInicio: dto.horaInicio },
     });
     return result;
   }

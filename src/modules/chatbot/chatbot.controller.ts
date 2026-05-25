@@ -1,4 +1,4 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Inject, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Inject, Param, ParseUUIDPipe, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiTags } from '@nestjs/swagger';
 import { Public } from '../../common/decorators/public.decorator';
 import { InternalApiKeyGuard } from '../../common/guards/internal-api-key.guard';
@@ -13,7 +13,7 @@ export class ChatbotController {
   constructor(@Inject(ChatbotService) private readonly service: ChatbotService) {}
 
   @Get('servicos')
-  listarServicos(@Query('empresaId') empresaId: string) {
+  listarServicos(@Query('empresaId', ParseUUIDPipe) empresaId: string) {
     return this.service.listarServicos(empresaId);
   }
 
@@ -25,8 +25,8 @@ export class ChatbotController {
 
   @Get('disponibilidade')
   disponibilidade(
-    @Query('empresaId') empresaId: string,
-    @Query('servicoId') servicoId: string,
+    @Query('empresaId', ParseUUIDPipe) empresaId: string,
+    @Query('servicoId', ParseUUIDPipe) servicoId: string,
     @Query('data') data: string,
   ) {
     return this.service.disponibilidade(empresaId, servicoId, data);
@@ -46,15 +46,18 @@ export class ChatbotController {
 
   @Get('agendamentos')
   listarAgendamentos(
-    @Query('empresaId') empresaId: string,
-    @Query('clienteId') clienteId: string,
+    @Query('empresaId', ParseUUIDPipe) empresaId: string,
+    @Query('clienteId', ParseUUIDPipe) clienteId: string,
   ) {
     return this.service.listarAgendamentos(empresaId, clienteId);
   }
 
   @Patch('agendamentos/:id/cancelar')
   @HttpCode(HttpStatus.OK)
-  cancelarAgendamento(@Param('id') id: string) {
-    return this.service.cancelarAgendamento(id);
+  cancelarAgendamento(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Query('empresaId', ParseUUIDPipe) empresaId: string,
+  ) {
+    return this.service.cancelarAgendamento(id, empresaId);
   }
 }

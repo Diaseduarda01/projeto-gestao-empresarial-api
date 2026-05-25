@@ -92,6 +92,56 @@ describe("AuthService.login", () => {
   });
 });
 
+describe("AuthService.loginComGoogle", () => {
+  const GOOGLE_PROFILE = { googleId: "google-123", email: "admin@test.com", nome: "Admin Google" };
+
+  it("lança 401 quando não há conta vinculada nem por googleId nem por email", async () => {
+    mockPrisma.funcionario.findUnique.mockResolvedValue(null);
+    await expect(authService.loginComGoogle(GOOGLE_PROFILE)).rejects.toThrow(UnauthorizedException);
+    expect(mockPrisma.funcionario.update).not.toHaveBeenCalled();
+  });
+
+  it("vincula googleId quando funcionário já existe pelo email", async () => {
+    mockPrisma.funcionario.findUnique
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(FUNCIONARIO);
+    mockPrisma.funcionario.update.mockResolvedValue({ ...FUNCIONARIO, googleId: GOOGLE_PROFILE.googleId });
+    mockPrisma.funcionarioEmpresa.findMany.mockResolvedValue([VINCULO]);
+    mockPrisma.refreshToken.create.mockResolvedValue({ token: "refresh-xyz" });
+
+    const result = await authService.loginComGoogle(GOOGLE_PROFILE);
+
+    expect(mockPrisma.funcionario.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { id: FUNCIONARIO.id },
+        data: expect.objectContaining({ googleId: GOOGLE_PROFILE.googleId, emailVerificado: true }),
+      }),
+    );
+    expect(result).toHaveProperty("accessToken");
+    expect(result).toHaveProperty("refreshToken");
+  });
+
+  it("retorna tokens sem chamar update quando funcionário já tem googleId vinculado", async () => {
+    const funcComGoogle = { ...FUNCIONARIO, googleId: GOOGLE_PROFILE.googleId };
+    mockPrisma.funcionario.findUnique.mockResolvedValueOnce(funcComGoogle);
+    mockPrisma.funcionarioEmpresa.findMany.mockResolvedValue([VINCULO]);
+    mockPrisma.refreshToken.create.mockResolvedValue({ token: "refresh-xyz" });
+
+    const result = await authService.loginComGoogle(GOOGLE_PROFILE);
+
+    expect(mockPrisma.funcionario.update).not.toHaveBeenCalled();
+    expect(result.empresaAtual!.id).toBe(EMPRESA.id);
+  });
+
+  it("lança 401 quando funcionário Google não tem empresa ativa", async () => {
+    const funcComGoogle = { ...FUNCIONARIO, googleId: GOOGLE_PROFILE.googleId };
+    mockPrisma.funcionario.findUnique.mockResolvedValueOnce(funcComGoogle);
+    mockPrisma.funcionarioEmpresa.findMany.mockResolvedValue([]);
+
+    await expect(authService.loginComGoogle(GOOGLE_PROFILE)).rejects.toThrow(UnauthorizedException);
+  });
+});
+
 describe("AuthService.forgotPassword", () => {
   it("retorna sem erro quando e-mail não existe (previne enumeração de usuários)", async () => {
     mockPrisma.funcionario.findUnique.mockResolvedValue(null);

@@ -16,6 +16,9 @@ export const envSchema = z.object({
   DB_CONNECTION_LIMIT: z.coerce.number().int().min(1).default(10),
   RABBITMQ_URL: z.string().default('amqp://guest:guest@localhost:5672'),
   INTERNAL_API_KEY: z.string().min(16).optional(),
+  GOOGLE_CLIENT_ID: z.string().optional(),
+  GOOGLE_CLIENT_SECRET: z.string().optional(),
+  GOOGLE_CALLBACK_URL: z.string().default('http://localhost:3333/auth/google/callback'),
 });
 
 export type Env = z.infer<typeof envSchema>;

@@ -88,4 +88,57 @@ export class AgendamentoRepository {
   updateAgendamentoStatus(tx: any, id: string, status: string) {
     return tx.agendamento.update({ where: { id }, data: { status } });
   }
+
+  findPedidoDuracaoTotal(pedidoId: string) {
+    return this.prisma.pedido.findUnique({
+      where: { id: pedidoId },
+      include: { servicos: { include: { servico: { select: { duracao: true } } } } },
+    });
+  }
+
+  findConflitosExcluindo(
+    tx: any,
+    params: {
+      salaId: string;
+      funcionarioId: string;
+      empresaId: string;
+      start: Date;
+      end: Date;
+      excludeAgendamentoId: string;
+    },
+  ) {
+    return tx.agendamento.findMany({
+      where: {
+        id: { not: params.excludeAgendamentoId },
+        empresaId: params.empresaId,
+        status: 'AGENDADO',
+        OR: [{ salaId: params.salaId }, { funcionarioId: params.funcionarioId }],
+        AND: [{ horaInicio: { lt: params.end } }, { horaFim: { gt: params.start } }],
+      },
+    });
+  }
+
+  createHistorico(
+    tx: any,
+    data: {
+      agendamentoId: string;
+      funcionarioId: string;
+      salaId: string;
+      data: Date;
+      horaInicio: Date;
+      horaFim: Date;
+      motivoReagendamento?: string;
+      reagendadoPorId?: string;
+    },
+  ) {
+    return tx.agendamentoHistorico.create({ data });
+  }
+
+  updateAgendamento(
+    tx: any,
+    id: string,
+    data: { data: Date; horaInicio: Date; horaFim: Date; salaId: string },
+  ) {
+    return tx.agendamento.update({ where: { id }, data, include: WITH_RELATIONS });
+  }
 }

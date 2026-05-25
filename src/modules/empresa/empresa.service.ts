@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ConflictException,
   Inject,
   Injectable,
@@ -12,6 +13,8 @@ import { EmpresaRepository } from './empresa.repository';
 import { CreateEmpresaDto } from './dto/create-empresa.dto';
 import { RegistrarEmpresaDto } from './dto/registrar-empresa.dto';
 import { ConvidarFuncionarioDto } from './dto/convidar-funcionario.dto';
+import { UpsertHorarioFuncionamentoDto } from './dto/horario-funcionamento.dto';
+import { UpsertPoliticaCancelamentoDto } from './dto/politica-cancelamento.dto';
 import { NotificacaoService } from '../../common/notificacao/notificacao.service';
 
 const CONVITE_TTL_HOURS     = 48;
@@ -107,5 +110,43 @@ export class EmpresaService {
     await this.notificacao.enviarConvite(dto.email, dto.nome ?? dto.email.split('@')[0], empresa.nome, `${frontendUrl}/aceitar-convite?token=${token}`);
 
     return { email: dto.email, papel: dto.papel, novo: true };
+  }
+
+  // HorarioFuncionamento
+
+  listHorarioFuncionamento(empresaId: string) {
+    return this.repository.listHorarioFuncionamento(empresaId);
+  }
+
+  upsertHorarioFuncionamento(empresaId: string, diaSemana: number, dto: UpsertHorarioFuncionamentoDto) {
+    if (diaSemana < 0 || diaSemana > 6) {
+      throw new BadRequestException('diaSemana deve ser entre 0 (domingo) e 6 (sábado)');
+    }
+    return this.repository.upsertHorarioFuncionamento(empresaId, diaSemana, {
+      horaAbertura: dto.horaAbertura,
+      horaFechamento: dto.horaFechamento,
+      ativo: dto.ativo ?? true,
+    });
+  }
+
+  removeHorarioFuncionamento(empresaId: string, diaSemana: number) {
+    return this.repository.removeHorarioFuncionamento(empresaId, diaSemana);
+  }
+
+  // PoliticaCancelamento
+
+  getPoliticaCancelamento(empresaId: string) {
+    return this.repository.findPoliticaCancelamento(empresaId);
+  }
+
+  upsertPoliticaCancelamento(empresaId: string, dto: UpsertPoliticaCancelamentoDto) {
+    return this.repository.upsertPoliticaCancelamento(empresaId, {
+      prazoMinimoHoras: dto.prazoMinimoHoras,
+      multaPercentual: dto.multaPercentual,
+    });
+  }
+
+  removePoliticaCancelamento(empresaId: string) {
+    return this.repository.removePoliticaCancelamento(empresaId);
   }
 }

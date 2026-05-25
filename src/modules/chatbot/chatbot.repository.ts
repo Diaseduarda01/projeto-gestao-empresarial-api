@@ -1,4 +1,4 @@
-import { Injectable, Inject } from '@nestjs/common';
+import { BadRequestException, Injectable, Inject, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../database/prisma.service';
 
 @Injectable()
@@ -27,18 +27,44 @@ export class ChatbotRepository {
     });
   }
 
+  findClienteByEmail(email: string, empresaId: string) {
+    return this.prisma.cliente.findFirst({
+      where: { email, empresaId, deletedAt: null },
+      select: { id: true, nome: true },
+    });
+  }
+
   async upsertCliente(params: {
     empresaId: string;
     nome: string;
-    telefone: string;
+    telefone?: string;
     email?: string;
   }): Promise<{ id: string; nome: string; novo: boolean }> {
-    const existente = await this.findClienteByTelefone(params.telefone, params.empresaId);
-    if (existente) return { ...existente, novo: false };
+    const telefone = params.telefone || 'sem-telefone';
+    const email = params.email ?? `web_${telefone.replace(/\D/g, '')}@booking.local`;
 
-    const email = params.email ?? `whatsapp_${params.telefone}@chatbot.local`;
+    const existente = await this.prisma.cliente.findFirst({
+      where: { email, empresaId: params.empresaId },
+      select: { id: true, nome: true, deletedAt: true },
+    });
+
+    if (existente) {
+      if (existente.deletedAt) {
+        await this.prisma.cliente.update({
+          where: { id: existente.id },
+          data: { deletedAt: null, nome: params.nome, telefone },
+        });
+      }
+      return { id: existente.id, nome: existente.nome, novo: false };
+    }
+
     const criado = await this.prisma.cliente.create({
-      data: { nome: params.nome, telefone: params.telefone, email, empresaId: params.empresaId },
+      data: {
+        nome: params.nome,
+        telefone,
+        email,
+        empresaId: params.empresaId,
+      },
       select: { id: true, nome: true },
     });
     return { ...criado, novo: true };
@@ -98,12 +124,19 @@ export class ChatbotRepository {
     });
   }
 
-  async cancelarAgendamento(agendamentoId: string) {
-    const agendamento = await this.prisma.agendamento.findUnique({
-      where: { id: agendamentoId },
+  findHorarioFuncionamento(empresaId: string, diaSemana: number) {
+    return this.prisma.horarioFuncionamento.findUnique({
+      where: { empresaId_diaSemana: { empresaId, diaSemana } },
+      select: { horaAbertura: true, horaFechamento: true, ativo: true },
     });
-    if (!agendamento) throw new Error('Agendamento não encontrado');
-    if (agendamento.status !== 'AGENDADO') throw new Error('Agendamento não pode ser cancelado');
+  }
+
+  async cancelarAgendamento(agendamentoId: string, empresaId: string) {
+    const agendamento = await this.prisma.agendamento.findFirst({
+      where: { id: agendamentoId, empresaId },
+    });
+    if (!agendamento) throw new NotFoundException('Agendamento não encontrado');
+    if (agendamento.status !== 'AGENDADO') throw new BadRequestException('Agendamento não pode ser cancelado');
 
     return this.prisma.$transaction(async (tx) => {
       const updated = await tx.agendamento.update({
@@ -129,7 +162,7 @@ export class ChatbotRepository {
     horaInicio: Date;
     horaFim: Date;
     nomeServico: string;
-  }): Promise<{ agendamentoId: string; confirmacao: string }> {
+  }): Promise<{ agendamentoId: string; confirmacao: string; cancelToken: string }> {
     return this.prisma.$transaction(async (tx) => {
       const pedido = await tx.pedido.create({
         data: {
@@ -139,6 +172,7 @@ export class ChatbotRepository {
         },
       });
 
+      const { randomUUID } = await import('crypto');
       const agendamento = await tx.agendamento.create({
         data: {
           pedidoId: pedido.id,
@@ -148,6 +182,7 @@ export class ChatbotRepository {
           data: params.data,
           horaInicio: params.horaInicio,
           horaFim: params.horaFim,
+          cancelToken: randomUUID(),
         },
       });
 
@@ -157,7 +192,7 @@ export class ChatbotRepository {
       const horaFmt = params.horaInicio.toISOString().substring(11, 16);
       const confirmacao = `Agendamento confirmado para ${dataFmt} às ${horaFmt} — ${params.nomeServico}. Código: ${agendamento.id.substring(0, 8).toUpperCase()}`;
 
-      return { agendamentoId: agendamento.id, confirmacao };
-    }) as Promise<{ agendamentoId: string; confirmacao: string }>;
+      return { agendamentoId: agendamento.id, confirmacao, cancelToken: agendamento.cancelToken! };
+    }) as Promise<{ agendamentoId: string; confirmacao: string; cancelToken: string }>;
   }
 }

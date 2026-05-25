@@ -76,4 +76,78 @@ export class FuncionarioRepository {
       where: { funcionarioId_servicoId: { funcionarioId, servicoId } },
     });
   }
+
+  // HorarioTrabalho
+
+  listHorariosTrabalho(funcionarioId: string, empresaId: string) {
+    return this.prisma.horarioTrabalho.findMany({
+      where: { funcionarioId, empresaId },
+      orderBy: { diaSemana: 'asc' },
+    });
+  }
+
+  upsertHorarioTrabalho(
+    funcionarioId: string,
+    empresaId: string,
+    diaSemana: number,
+    data: { horaInicio: string; horaFim: string },
+  ) {
+    return this.prisma.horarioTrabalho.upsert({
+      where: { funcionarioId_empresaId_diaSemana: { funcionarioId, empresaId, diaSemana } },
+      update: data,
+      create: { funcionarioId, empresaId, diaSemana, ...data },
+    });
+  }
+
+  removeHorarioTrabalho(funcionarioId: string, empresaId: string, diaSemana: number) {
+    return this.prisma.horarioTrabalho.deleteMany({
+      where: { funcionarioId, empresaId, diaSemana },
+    });
+  }
+
+  // BloqueioAgenda
+
+  listBloqueios(funcionarioId: string, empresaId: string) {
+    return this.prisma.bloqueioAgenda.findMany({
+      where: { funcionarioId, empresaId },
+      orderBy: { data: 'asc' },
+    });
+  }
+
+  createBloqueio(data: {
+    funcionarioId: string;
+    empresaId: string;
+    data: Date;
+    horaInicio?: string;
+    horaFim?: string;
+    motivo?: string;
+  }) {
+    return this.prisma.bloqueioAgenda.create({ data });
+  }
+
+  removeBloqueio(id: string, empresaId: string) {
+    return this.prisma.bloqueioAgenda.deleteMany({ where: { id, empresaId } });
+  }
+
+  // Disponibilidade
+
+  async findDisponibilidade(funcionarioId: string, empresaId: string, data: string) {
+    const date = new Date(`${data}T00:00:00.000Z`);
+    const dayOfWeek = date.getUTCDay();
+
+    const [horarioTrabalho, agendamentos, bloqueios] = await Promise.all([
+      this.prisma.horarioTrabalho.findUnique({
+        where: { funcionarioId_empresaId_diaSemana: { funcionarioId, empresaId, diaSemana: dayOfWeek } },
+      }),
+      this.prisma.agendamento.findMany({
+        where: { funcionarioId, empresaId, data: date, status: 'AGENDADO' },
+        select: { horaInicio: true, horaFim: true },
+      }),
+      this.prisma.bloqueioAgenda.findMany({
+        where: { funcionarioId, empresaId, data: date },
+      }),
+    ]);
+
+    return { horarioTrabalho, agendamentos, bloqueios, dayOfWeek };
+  }
 }

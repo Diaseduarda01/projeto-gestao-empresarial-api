@@ -3,6 +3,7 @@ import { APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { CacheModule } from '@nestjs/cache-manager';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
+import { ScheduleModule } from '@nestjs/schedule';
 import { LoggerModule } from 'nestjs-pino';
 import { randomUUID } from 'crypto';
 import { PrismaModule } from './database/prisma.module';
@@ -16,6 +17,13 @@ import { AgendamentoModule } from './modules/agendamento/agendamento.module';
 import { EmpresaModule } from './modules/empresa/empresa.module';
 import { PlatformAdminModule } from './modules/platform-admin/platform-admin.module';
 import { ChatbotModule } from './modules/chatbot/chatbot.module';
+import { InternalModule } from './modules/internal/internal.module';
+import { PublicModule } from './modules/public/public.module';
+import { RelatoriosModule } from './modules/relatorios/relatorios.module';
+import { ListaEsperaModule } from './modules/lista-espera/lista-espera.module';
+import { FinanceiroModule } from './modules/financeiro/financeiro.module';
+import { EstoqueModule } from './modules/estoque/estoque.module';
+import { ComissaoModule } from './modules/comissao/comissao.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RolesGuard } from './common/guards/roles.guard';
 import { HealthController } from './common/health/health.controller';
@@ -23,6 +31,7 @@ import { ETagInterceptor } from './common/interceptors/etag.interceptor';
 import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
 import { AuditModule } from './common/audit/audit.module';
 import { NotificacaoModule } from './common/notificacao/notificacao.module';
+import { MessagingModule } from './common/messaging/messaging.module';
 import { envSchema } from './config/env.schema';
 
 @Module({
@@ -71,9 +80,11 @@ import { envSchema } from './config/env.schema';
     }),
     CacheModule.register({ isGlobal: true, ttl: 60000, max: 200 }),
     ThrottlerModule.forRoot([{ name: 'default', ttl: 60000, limit: 100 }]),
+    ScheduleModule.forRoot(),
     PrismaModule,
     AuditModule,
     NotificacaoModule,
+    MessagingModule,
     AuthModule,
     ClienteModule,
     ServicoModule,
@@ -84,6 +95,13 @@ import { envSchema } from './config/env.schema';
     EmpresaModule,
     PlatformAdminModule,
     ChatbotModule,
+    InternalModule,
+    PublicModule,
+    RelatoriosModule,
+    ListaEsperaModule,
+    FinanceiroModule,
+    EstoqueModule,
+    ComissaoModule,
   ],
   controllers: [HealthController],
   providers: [

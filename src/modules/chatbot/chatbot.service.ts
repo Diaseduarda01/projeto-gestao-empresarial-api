@@ -2,12 +2,17 @@ import { ConflictException, Inject, Injectable, NotFoundException } from '@nestj
 import { ChatbotRepository } from './chatbot.repository';
 import { ChatbotClienteDto } from './dto/chatbot.dto';
 
-const HORA_INICIO_MIN = 8 * 60;   // 08:00
-const HORA_FIM_MIN = 18 * 60;     // 18:00
 const SLOT_STEP_MIN = 30;
+const HORA_INICIO_PADRAO = 8 * 60;  // fallback 08:00 quando empresa sem horário configurado
+const HORA_FIM_PADRAO = 18 * 60;    // fallback 18:00
 
 function pad(n: number) {
   return n.toString().padStart(2, '0');
+}
+
+function horaParaMinutos(hora: string): number {
+  const [h, m] = hora.split(':').map(Number);
+  return h * 60 + m;
 }
 
 @Injectable()
@@ -22,7 +27,7 @@ export class ChatbotService {
     return this.repository.upsertCliente({
       empresaId: dto.empresaId,
       nome: dto.nome,
-      telefone: dto.telefone,
+      telefone: dto.telefone ?? undefined,
       email: dto.email,
     });
   }
@@ -37,6 +42,12 @@ export class ChatbotService {
     const salas = await this.repository.findSalasAtivas(empresaId);
     if (!salas.length) return [];
 
+    // diaSemana: 0=Domingo, 1=Segunda, ..., 6=Sábado (padrão UTC para evitar drift de timezone)
+    const diaSemana = new Date(`${data}T12:00:00.000Z`).getUTCDay();
+    const horario = await this.repository.findHorarioFuncionamento(empresaId, diaSemana);
+    const horaInicioMin = horario?.ativo ? horaParaMinutos(horario.horaAbertura) : HORA_INICIO_PADRAO;
+    const horaFimMin = horario?.ativo ? horaParaMinutos(horario.horaFechamento) : HORA_FIM_PADRAO;
+
     const salaIds = salas.map((s) => s.id);
     const dataStart = new Date(`${data}T00:00:00.000Z`);
     const dataEnd = new Date(`${data}T23:59:59.999Z`);
@@ -45,7 +56,7 @@ export class ChatbotService {
     );
 
     const slots: string[] = [];
-    for (let min = HORA_INICIO_MIN; min + servico.duracao <= HORA_FIM_MIN; min += SLOT_STEP_MIN) {
+    for (let min = horaInicioMin; min + servico.duracao <= horaFimMin; min += SLOT_STEP_MIN) {
       const hh = Math.floor(min / 60);
       const mm = min % 60;
       const slotStart = new Date(`${data}T${pad(hh)}:${pad(mm)}:00.000Z`);
@@ -80,8 +91,8 @@ export class ChatbotService {
     }));
   }
 
-  async cancelarAgendamento(agendamentoId: string) {
-    return this.repository.cancelarAgendamento(agendamentoId);
+  async cancelarAgendamento(agendamentoId: string, empresaId: string) {
+    return this.repository.cancelarAgendamento(agendamentoId, empresaId);
   }
 
   async criarAgendamento(params: {
